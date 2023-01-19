@@ -10,7 +10,6 @@ import org.springframework.data.mapping.PropertyReferenceException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.validation.ObjectError;
@@ -177,28 +176,6 @@ public class ResourceExceptionHandler {
 						"PropertyReferenceException",
 						args,
 						LocaleContextHolder.getLocale()),
-				request.getRequestURI()));
-	}
-
-
-	@ExceptionHandler(BadCredentialsException.class)
-	public ResponseEntity<StandardError> methodArgumentTypeMismatch(BadCredentialsException e, HttpServletRequest request) {
-		HttpStatus status = HttpStatus.BAD_REQUEST;
-
-//		var args = new Object[] {
-//				messageSource.getMessage(
-//						e.getPropertyName(),
-//						null,
-//						LocaleContextHolder.getLocale()),
-//				messageSource.getMessage(
-//						e.getType().getType().getSimpleName(),
-//						null,
-//						LocaleContextHolder.getLocale())
-//		};
-		return ResponseEntity.status(status).body(createStandardError(
-				status,
-				"Method Not Allowed",
-				"safado!",
 				request.getRequestURI()));
 	}
 
