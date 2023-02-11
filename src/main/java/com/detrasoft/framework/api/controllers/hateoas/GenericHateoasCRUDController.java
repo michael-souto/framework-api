@@ -24,9 +24,11 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import javax.servlet.http.HttpServletRequest;
 import javax.validation.Valid;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
+import java.lang.reflect.ParameterizedType;
 
 public class GenericHateoasCRUDController<DTO extends GenericRepresentationModelDTO<? extends DTO>> {
 
@@ -45,7 +47,7 @@ public class GenericHateoasCRUDController<DTO extends GenericRepresentationModel
     @JsonView(ResponseView.findAll.class)
     @GetMapping
     public ResponseEntity<PagedModel<DTO>> findAll(Pageable pageable) {
-        Page<GenericEntity> list = getAllPaged(pageable);
+        Page<? extends GenericEntity> list = getAllPaged(pageable);
         var paged = new PageImpl<DTO>(
                 list.getContent().stream()
                         .map(obj -> assembler.toModel(obj)).toList(), pageable, list.getTotalElements());
@@ -58,7 +60,7 @@ public class GenericHateoasCRUDController<DTO extends GenericRepresentationModel
     @JsonView(ResponseView.findById.class)
     @GetMapping(value = "/{id}")
     public ResponseEntity<DTO> findById(@PathVariable String id) {
-        GenericEntity dto = getOne(id);
+        var dto = getOne(id);
         return ResponseEntity.ok().body(assembler.toModel(dto,true));
     }
 
@@ -112,5 +114,21 @@ public class GenericHateoasCRUDController<DTO extends GenericRepresentationModel
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         service.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @SuppressWarnings("unchecked")
+    private Class<?> getGenericClass() {
+        ParameterizedType type = (ParameterizedType) getClass().getGenericSuperclass();
+        return ((Class<DTO>) (type).getActualTypeArguments()[0]);
+    }
+
+    @GetMapping(value = "/schema")
+    public ResponseEntity<Object> schema() {
+        try {
+            return ResponseEntity.ok(getGenericClass().getDeclaredConstructor().newInstance());
+        } catch (InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException
+                 | NoSuchMethodException | SecurityException e) {
+            return null;
+        }
     }
 }
