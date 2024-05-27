@@ -23,6 +23,7 @@ import java.lang.reflect.Field;
 import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 
 public abstract class GenericCRUDController<DTO extends GenericDTO> {
 
@@ -58,7 +59,7 @@ public abstract class GenericCRUDController<DTO extends GenericDTO> {
     }
 
     protected GenericEntity getOne(String id) {
-        return service.findById(Long.parseLong(id));
+        return service.findById(UUID.fromString(id));
     }
 
 
@@ -73,7 +74,7 @@ public abstract class GenericCRUDController<DTO extends GenericDTO> {
 
     @JsonView(ResponseView.put.class)
     @PutMapping(value = "/{id}")
-    public ResponseEntity<DTO> update(@PathVariable Long id, @RequestBody @Valid DTO dto) {
+    public ResponseEntity<DTO> update(@PathVariable UUID id, @RequestBody @Valid DTO dto) {
         dto.setId(id);
         var newObj = service.update(id, converter.toEntity(dto));
         return ResponseEntity.ok().body(converter.toDto(newObj));
@@ -81,7 +82,7 @@ public abstract class GenericCRUDController<DTO extends GenericDTO> {
 
     @JsonView(ResponseView.patch.class)
     @PatchMapping(value = "/{id}")
-    public ResponseEntity<DTO> patch(@PathVariable Long id, @RequestBody Map<String, Object> dto, HttpServletRequest request) {
+    public ResponseEntity<DTO> patch(@PathVariable UUID id, @RequestBody Map<String, Object> dto, HttpServletRequest request) {
         var objSaved = service.findById(id);
         if (objSaved != null) {
             try {
@@ -105,7 +106,7 @@ public abstract class GenericCRUDController<DTO extends GenericDTO> {
 
     @JsonView(ResponseView.delete.class)
     @DeleteMapping(value = "/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(@PathVariable UUID id) {
         service.delete(id);
         return ResponseEntity.noContent().build();
     }

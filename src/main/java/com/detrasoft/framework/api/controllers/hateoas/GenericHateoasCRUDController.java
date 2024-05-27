@@ -29,6 +29,7 @@ import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 import java.lang.reflect.ParameterizedType;
+import java.util.UUID;
 
 public class GenericHateoasCRUDController<DTO extends GenericRepresentationModelDTO<? extends DTO>> {
 
@@ -65,7 +66,7 @@ public class GenericHateoasCRUDController<DTO extends GenericRepresentationModel
     }
 
     protected GenericEntity getOne(String id) {
-        return service.findById(Long.parseLong(id));
+        return service.findById(UUID.fromString(id));
     }
 
     @JsonView(ResponseView.post.class)
@@ -79,7 +80,7 @@ public class GenericHateoasCRUDController<DTO extends GenericRepresentationModel
 
     @JsonView(ResponseView.put.class)
     @PutMapping(value = "/{id}")
-    public ResponseEntity<DTO> update(@PathVariable Long id, @RequestBody @Valid DTO dto) {
+    public ResponseEntity<DTO> update(@PathVariable UUID id, @RequestBody @Valid DTO dto) {
         dto.setId(id);
         var newObj = service.update(id, assembler.toEntity(dto));
         return ResponseEntity.ok().body(assembler.toModel(newObj, true));
@@ -87,7 +88,7 @@ public class GenericHateoasCRUDController<DTO extends GenericRepresentationModel
 
     @JsonView(ResponseView.patch.class)
     @PatchMapping(value = "/{id}")
-    public ResponseEntity<DTO> patch(@PathVariable Long id, @RequestBody Map<String, Object> dto, HttpServletRequest request) {
+    public ResponseEntity<DTO> patch(@PathVariable UUID id, @RequestBody Map<String, Object> dto, HttpServletRequest request) {
         var objSaved = service.findById(id);
         if (objSaved != null) {
             try {
@@ -111,7 +112,7 @@ public class GenericHateoasCRUDController<DTO extends GenericRepresentationModel
 
     @JsonView(ResponseView.delete.class)
     @DeleteMapping(value = "/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(@PathVariable UUID id) {
         service.delete(id);
         return ResponseEntity.noContent().build();
     }

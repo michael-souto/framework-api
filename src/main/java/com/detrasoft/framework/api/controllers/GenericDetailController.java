@@ -13,20 +13,21 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import javax.validation.Valid;
 import java.net.URI;
+import java.util.UUID;
 
 public abstract class GenericDetailController<DTO extends GenericDTO> {
     
     protected GenericCRUDService service;
     protected GenericEntityDTOConverter<?, DTO> converter;
 
-    protected abstract void setIdSubDetailInDTO(Long idDetail, Long idSubDetail, DTO dto);
+    protected abstract void setIdSubDetailInDTO(UUID idDetail, UUID idSubDetail, DTO dto);
     public GenericDetailController(GenericCRUDService<?> service, GenericEntityDTOConverter<?, DTO> converter) {
         this.service = service;
         this.converter = converter;
     }
 
     @PostMapping
-    public ResponseEntity<DTO> insert(@PathVariable(value = "idDetail") Long idDetail,
+    public ResponseEntity<DTO> insert(@PathVariable(value = "idDetail") UUID idDetail,
                                       @RequestBody @Valid DTO dto) {
         setIdSubDetailInDTO(idDetail, null, dto);
         var obj = service.insert(converter.toEntity(dto));
@@ -36,8 +37,8 @@ public abstract class GenericDetailController<DTO extends GenericDTO> {
     }
 
     @PutMapping(value = "/{idSubDetail}")
-    public ResponseEntity<DTO> update(@PathVariable(value = "idDetail") Long idDetail,
-                                      @PathVariable(value = "idSubDetail") Long idSubDetail,
+    public ResponseEntity<DTO> update(@PathVariable(value = "idDetail") UUID idDetail,
+                                      @PathVariable(value = "idSubDetail") UUID idSubDetail,
                                                  @RequestBody @Valid DTO dto) {
         setIdSubDetailInDTO(idDetail, idSubDetail, dto);
         var obj = service.update(idSubDetail, converter.toEntity(dto));
@@ -47,17 +48,17 @@ public abstract class GenericDetailController<DTO extends GenericDTO> {
     }
 
     @GetMapping(value = "/{idSubDetail}")
-    public ResponseEntity<DTO> findById(@PathVariable Long idSubDetail) {
+    public ResponseEntity<DTO> findById(@PathVariable UUID idSubDetail) {
         var obj = findByIdSubDetail(idSubDetail);
         return ResponseEntity.ok(converter.toDto(obj));
     }
 
-    protected GenericEntity findByIdSubDetail(Long idSubDetail) {
+    protected GenericEntity findByIdSubDetail(UUID idSubDetail) {
         return service.findById(idSubDetail);
     }
 
     @GetMapping
-    public ResponseEntity<Page<DTO>> findAll(@PathVariable(value = "idDetail") Long idDetail, Pageable pageable) {
+    public ResponseEntity<Page<DTO>> findAll(@PathVariable(value = "idDetail") UUID idDetail, Pageable pageable) {
         Page<?> list = findAllByIdDetail(idDetail, pageable);
         Page<DTO> resultList = new PageImpl<DTO>(
                 list.getContent().stream()
@@ -65,12 +66,12 @@ public abstract class GenericDetailController<DTO extends GenericDTO> {
         return ResponseEntity.ok().body(resultList);
     }
 
-    protected Page<?> findAllByIdDetail(Long idDetail, Pageable pageable) {
+    protected Page<?> findAllByIdDetail(UUID idDetail, Pageable pageable) {
         return  service.findAllPaged(pageable);
     }
 
     @DeleteMapping(value = "/{idSubDetail}")
-    public ResponseEntity<Void> deleteById(@PathVariable Long idSubDetail) {
+    public ResponseEntity<Void> deleteById(@PathVariable UUID idSubDetail) {
         service.delete(idSubDetail);
         return ResponseEntity.noContent().build();
     }

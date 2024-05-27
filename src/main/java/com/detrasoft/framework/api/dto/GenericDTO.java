@@ -1,6 +1,8 @@
 package com.detrasoft.framework.api.dto;
 
+import java.util.UUID;
+
 public interface GenericDTO {
-    Long getId();
-    void setId(Long id);
+    UUID getId();
+    void setId(UUID id);
 }

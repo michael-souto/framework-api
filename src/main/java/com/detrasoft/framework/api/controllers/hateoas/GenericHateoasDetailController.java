@@ -21,6 +21,7 @@ import javax.validation.Valid;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.ParameterizedType;
 import java.net.URI;
+import java.util.UUID;
 
 public abstract class GenericHateoasDetailController<DTO extends GenericRepresentationModelDTO<? extends DTO>> {
 
@@ -30,7 +31,7 @@ public abstract class GenericHateoasDetailController<DTO extends GenericRepresen
     @Autowired
     protected PagedResourcesAssembler<DTO> pagedAssembler;
 
-    protected abstract void setIdSubDetailInDTO(Long idDetail, Long idSubDetail, DTO dto);
+    protected abstract void setIdSubDetailInDTO(UUID idDetail, UUID idSubDetail, DTO dto);
     public GenericHateoasDetailController(GenericCRUDService<?> service,
                                           GenericRepresentationModelDTOAssembler assembler) {
         this.service = service;
@@ -39,7 +40,7 @@ public abstract class GenericHateoasDetailController<DTO extends GenericRepresen
 
     @JsonView(ResponseView.post.class)
     @PostMapping
-    public ResponseEntity<DTO> insert(@PathVariable(value = "idDetail") Long idDetail,
+    public ResponseEntity<DTO> insert(@PathVariable(value = "idDetail") UUID idDetail,
                                       @RequestBody @Valid DTO dto) {
         setIdSubDetailInDTO(idDetail, null, dto);
         var obj = service.insert(assembler.toEntity(dto));
@@ -50,8 +51,8 @@ public abstract class GenericHateoasDetailController<DTO extends GenericRepresen
 
     @JsonView(ResponseView.put.class)
     @PutMapping(value = "/{idSubDetail}")
-    public ResponseEntity<DTO> update(@PathVariable(value = "idDetail") Long idDetail,
-                                      @PathVariable(value = "idSubDetail") Long idSubDetail,
+    public ResponseEntity<DTO> update(@PathVariable(value = "idDetail") UUID idDetail,
+                                      @PathVariable(value = "idSubDetail") UUID idSubDetail,
                                       @RequestBody @Valid DTO dto) {
         dto.setId(idSubDetail);
         setIdSubDetailInDTO(idDetail, idSubDetail, dto);
@@ -63,19 +64,19 @@ public abstract class GenericHateoasDetailController<DTO extends GenericRepresen
 
     @JsonView(ResponseView.findById.class)
     @GetMapping(value = "/{idSubDetail}")
-    public ResponseEntity<DTO> findById(@PathVariable(value = "idDetail") Long idDetail,
-                                        @PathVariable Long idSubDetail) {
+    public ResponseEntity<DTO> findById(@PathVariable(value = "idDetail") UUID idDetail,
+                                        @PathVariable UUID idSubDetail) {
         var obj = findByIdSubDetail(idSubDetail);
         return ResponseEntity.ok(assembler.toModel(obj,idDetail));
     }
 
-    protected GenericEntity findByIdSubDetail(Long idSubDetail) {
+    protected GenericEntity findByIdSubDetail(UUID idSubDetail) {
         return service.findById(idSubDetail);
     }
 
     @JsonView(ResponseView.findAll.class)
     @GetMapping
-    public ResponseEntity<PagedModel<DTO>> findAll(@PathVariable(value = "idDetail") Long idDetail, Pageable pageable) {
+    public ResponseEntity<PagedModel<DTO>> findAll(@PathVariable(value = "idDetail") UUID idDetail, Pageable pageable) {
         Page<? extends GenericEntity> list = findAllByIdDetail(idDetail, pageable);
         var paged = new PageImpl<DTO>(
                 list.getContent().stream()
@@ -83,13 +84,13 @@ public abstract class GenericHateoasDetailController<DTO extends GenericRepresen
         return ResponseEntity.ok().body(pagedAssembler.toModel((Page) list, (RepresentationModelAssembler) assembler));
     }
 
-    protected Page<? extends GenericEntity> findAllByIdDetail(Long idDetail, Pageable pageable) {
+    protected Page<? extends GenericEntity> findAllByIdDetail(UUID idDetail, Pageable pageable) {
         return  service.findAllPaged(pageable);
     }
 
     @JsonView(ResponseView.delete.class)
     @DeleteMapping(value = "/{idSubDetail}")
-    public ResponseEntity<Void> deleteById(@PathVariable Long idSubDetail) {
+    public ResponseEntity<Void> deleteById(@PathVariable UUID idSubDetail) {
         service.delete(idSubDetail);
         return ResponseEntity.noContent().build();
     }

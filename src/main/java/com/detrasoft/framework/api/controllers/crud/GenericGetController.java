@@ -13,6 +13,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 
+import java.util.UUID;
+
 public class GenericGetController<DTO extends GenericDTO> {
 
     protected GenericCRUDService<?> service;
@@ -45,7 +47,7 @@ public class GenericGetController<DTO extends GenericDTO> {
     }
 
     protected GenericEntity getOne(String id) {
-        return service.findById(Long.parseLong(id));
+        return service.findById(UUID.fromString(id));
     }
 
 }

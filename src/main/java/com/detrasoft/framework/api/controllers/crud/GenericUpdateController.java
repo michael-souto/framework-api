@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
 import javax.validation.Valid;
+import java.util.UUID;
 
 public class GenericUpdateController<DTO extends GenericDTO> {
 
@@ -22,7 +23,7 @@ public class GenericUpdateController<DTO extends GenericDTO> {
     }
 
     @PutMapping(value = "/{id}")
-    public ResponseEntity<DTO> update(@PathVariable Long id, @RequestBody @Valid DTO dto) {
+    public ResponseEntity<DTO> update(@PathVariable UUID id, @RequestBody @Valid DTO dto) {
         dto.setId(id);
         var newObj = service.update(id, converter.toEntity(dto));
         return ResponseEntity.ok().body(converter.toDto(newObj));
