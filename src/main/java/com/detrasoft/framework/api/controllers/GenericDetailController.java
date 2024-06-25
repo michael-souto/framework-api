@@ -66,7 +66,7 @@ public abstract class GenericDetailController<DTO extends GenericDTO> {
         return ResponseEntity.ok().body(resultList);
     }
 
-    protected Page<?> findAllByIdDetail(UUID idDetail, Pageable pageable) {
+    protected Page<? extends GenericEntity> findAllByIdDetail(UUID idDetail, Pageable pageable) {
         return  service.findAllPaged(pageable);
     }
 

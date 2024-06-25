@@ -46,7 +46,7 @@ public abstract class GenericCRUDController<DTO extends GenericDTO> {
         return ResponseEntity.ok().body(resultList);
     }
 
-    protected Page<?> getAllPaged(Pageable pageable) {
+    protected Page<? extends GenericEntity> getAllPaged(Pageable pageable) {
         return service.findAllPaged(pageable);
     }
 

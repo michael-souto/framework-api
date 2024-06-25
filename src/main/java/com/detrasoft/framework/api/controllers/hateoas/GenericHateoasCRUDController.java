@@ -54,7 +54,7 @@ public class GenericHateoasCRUDController<DTO extends GenericRepresentationModel
                         .map(obj -> assembler.toModel(obj, true)).toList(), pageable, list.getTotalElements());
         return ResponseEntity.ok().body(pagedAssembler.toModel((Page) list, (RepresentationModelAssembler) assembler));
     }
-    protected Page<GenericEntity> getAllPaged(Pageable pageable) {
+    protected Page<? extends GenericEntity> getAllPaged(Pageable pageable) {
         return service.findAllPaged(pageable);
     }
 
