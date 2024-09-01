@@ -2,7 +2,7 @@ package com.detrasoft.framework.api.dto;
 
 import lombok.Data;
 
-import javax.persistence.Embeddable;
+import jakarta.persistence.Embeddable;
 import java.time.Instant;
 
 @Data
