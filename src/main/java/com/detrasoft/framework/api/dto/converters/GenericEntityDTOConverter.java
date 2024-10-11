@@ -20,11 +20,6 @@ public class GenericEntityDTOConverter<Entity extends GenericEntity, DTO extends
         }
     }
 
-    protected void copyDtoToEntity(DTO dto, Entity entity) {
-        BeanUtils.copyProperties(dto, entity);
-    }
-
-
     public DTO toDto(Object obj) {
         try {
             var dto = (DTO) ((Class) ((ParameterizedType) this.getClass().
@@ -34,6 +29,10 @@ public class GenericEntityDTOConverter<Entity extends GenericEntity, DTO extends
         } catch (InvocationTargetException | InstantiationException | IllegalAccessException | NoSuchMethodException e) {
             throw new RuntimeException(e);
         }
+    }
+    
+    protected void copyDtoToEntity(DTO dto, Entity entity) {
+        BeanUtils.copyProperties(dto, entity);
     }
 
     protected void copyEntityToDto(Object obj, DTO dto) {
