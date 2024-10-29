@@ -193,9 +193,15 @@ public class ResourceExceptionHandler {
 		for (ObjectError objectError : e.getBindingResult().getAllErrors()) {
 
 			if (objectError instanceof FieldError) {
-				err.addError(((FieldError) objectError).getField(), messageSource.getMessage(((FieldError) objectError), LocaleContextHolder.getLocale()));
+				err.addError(
+					messageSource.getMessage(((FieldError) objectError).getField().toLowerCase(),null, LocaleContextHolder.getLocale()), 
+					messageSource.getMessage(((FieldError) objectError), LocaleContextHolder.getLocale())
+				);
 			} else {
-				err.addError(((ObjectError) objectError).getObjectName(), messageSource.getMessage(((ObjectError) objectError), LocaleContextHolder.getLocale()));
+				err.addError(
+					messageSource.getMessage(((ObjectError) objectError).getObjectName(),null, LocaleContextHolder.getLocale()), 
+					messageSource.getMessage(((ObjectError) objectError), LocaleContextHolder.getLocale())
+				);
 			}
 		}
 		
