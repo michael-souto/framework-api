@@ -35,6 +35,7 @@ public class ResourceExceptionHandler {
 	@ExceptionHandler(Exception.class)
 	public ResponseEntity<Object> handleUncaught(Exception ex, HttpServletRequest request) {
 		HttpStatus status = HttpStatus.INTERNAL_SERVER_ERROR;
+		ex.printStackTrace();
 		return ResponseEntity.status(status).body(createStandardError(
 				status,
 				"Resource not found",
