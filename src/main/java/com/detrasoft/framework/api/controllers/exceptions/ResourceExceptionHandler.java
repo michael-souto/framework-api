@@ -5,6 +5,7 @@ import com.detrasoft.framework.crud.services.exceptions.ResourceNotFoundExceptio
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
+import org.springframework.context.NoSuchMessageException;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.mapping.PropertyReferenceException;
 import org.springframework.http.HttpStatus;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -42,10 +44,41 @@ public class ResourceExceptionHandler {
 				"An unexpected internal system error has occurred. Please try again and if the problem persists, contact your system administrator.",
 				request.getRequestURI()));
 	}
+	
+	@ExceptionHandler(NoSuchMessageException.class)
+	public ResponseEntity<Object> handleUncaught(NoSuchMessageException ex, HttpServletRequest request) {
+		HttpStatus status = HttpStatus.INTERNAL_SERVER_ERROR;
+		ex.printStackTrace();
+		return ResponseEntity.status(status).body(createStandardError(
+				status,
+				"Error of development of API.",
+				ex.getMessage(),
+				request.getRequestURI()));
+	}
+	
+	@ExceptionHandler(IllegalArgumentException.class)
+	public ResponseEntity<StandardError> entityNotFound(IllegalArgumentException e, HttpServletRequest request) {
+		HttpStatus status = HttpStatus.BAD_REQUEST;
+		return ResponseEntity.status(status).body(createStandardError(
+				status,
+				"Resource not found",
+				e.getMessage(),
+				request.getRequestURI()));
+	}
+
+	@ExceptionHandler(NoResourceFoundException.class)
+	public ResponseEntity<StandardError> resourceNotFound(NoResourceFoundException e, HttpServletRequest request) {
+		HttpStatus status = HttpStatus.NOT_FOUND;
+		return ResponseEntity.status(status).body(createStandardError(
+				status,
+				"Resource not found",
+				e.getMessage(),
+				request.getRequestURI()));
+	}
 
 	@ExceptionHandler(ResourceNotFoundException.class)
 	public ResponseEntity<StandardError> entityNotFound(ResourceNotFoundException e, HttpServletRequest request) {
-		HttpStatus status = HttpStatus.BAD_REQUEST;
+		HttpStatus status = HttpStatus.NOT_FOUND;
 		return ResponseEntity.status(status).body(createStandardError(
 				status,
 				"Resource not found",
@@ -183,27 +216,34 @@ public class ResourceExceptionHandler {
 	@ExceptionHandler(MethodArgumentNotValidException.class)
 	public ResponseEntity<ValidationError> validation(MethodArgumentNotValidException e, HttpServletRequest request) {
 		HttpStatus status = HttpStatus.UNPROCESSABLE_ENTITY;
+		var title = messageSource.getMessage("error.title_validation_errors", null, LocaleContextHolder.getLocale());
+		var detail = messageSource.getMessage("error.detail_validation_errors", null, LocaleContextHolder.getLocale());
+		
 		ValidationError err = ValidationError.standardBuilder()
 				.timestamp(Instant.now())
 				.status(status.value())
-				.title("Validation exception")
-				.detail("Erros na entrada das informações, consulte as mensagens para mais detalhes")
+				.title(title)
+				.detail(detail)
 				.path(request.getRequestURI())
 				.build();
 
 		for (ObjectError objectError : e.getBindingResult().getAllErrors()) {
-
-			if (objectError instanceof FieldError) {
-				err.addError(
-					messageSource.getMessage(((FieldError) objectError).getField().toLowerCase(),null, LocaleContextHolder.getLocale()), 
-					messageSource.getMessage(((FieldError) objectError), LocaleContextHolder.getLocale())
-				);
+			String fieldName;
+			String message;
+	
+			if (objectError instanceof FieldError fieldError) {
+				// Tenta obter o nome do campo traduzido, se houver
+				fieldName = messageSource.getMessage(fieldError.getField(), null, LocaleContextHolder.getLocale());
+				
+				// Obtém a mensagem de erro e substitui corretamente o placeholder {field}
+				message = messageSource.getMessage(fieldError, LocaleContextHolder.getLocale());
+				message = message.replace("{field}", fieldName);
 			} else {
-				err.addError(
-					messageSource.getMessage(((ObjectError) objectError).getObjectName(),null, LocaleContextHolder.getLocale()), 
-					messageSource.getMessage(((ObjectError) objectError), LocaleContextHolder.getLocale())
-				);
+				fieldName = messageSource.getMessage(objectError.getObjectName(), null, LocaleContextHolder.getLocale());
+				message = messageSource.getMessage(objectError, LocaleContextHolder.getLocale());
 			}
+	
+			err.addError(fieldName, message);
 		}
 		
 		return ResponseEntity.status(status).body(err);

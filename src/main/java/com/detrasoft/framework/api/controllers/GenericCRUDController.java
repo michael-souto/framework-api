@@ -26,6 +26,8 @@ import jakarta.validation.Valid;
 import java.lang.reflect.Field;
 import java.net.URI;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -88,11 +90,32 @@ public abstract class GenericCRUDController<DTO extends GenericDTO> {
         );
     }
 
+    @JsonView(ResponseView.post.class)
+    @PostMapping(value = "/list")
+    public ResponseEntity<ResponseNotification> insertList(@RequestBody List<DTO> listDto) {
+        var entityList = new ArrayList<>();
+        for (DTO dto : listDto) {
+            var result = service.insert(converter.toEntity(dto));
+            entityList.add(result);
+        }
+        List<DTO> resultList = entityList.stream().map(x -> converter.toDto(x)).toList();
+        return ResponseEntity.created(null).body(
+            ResponseNotification.builder()
+                .timestamp(Instant.now())
+                .title(Translator.getTranslatedText(CodeMessages.SUCCESS))
+                .detail(Translator.getTranslatedText(CodeMessages.SUCCESS_OPERATION))
+                .messages(service.getMessages())
+                .status(HttpStatus.CREATED.value())
+                .data(resultList)
+            .build()
+        );
+    }
+
     @JsonView(ResponseView.put.class)
     @PutMapping(value = "/{id}")
     public ResponseEntity<ResponseNotification> update(@PathVariable UUID id, @RequestBody @Valid DTO dto) {
         dto.setId(id);
-        var newObj = service.update(id, converter.toEntity(dto));
+        var objSaved = service.update(id, converter.toEntity(dto));
         URI uri = ServletUriComponentsBuilder.fromCurrentRequest().build().toUri();
 
         return ResponseEntity.ok().body(
@@ -102,12 +125,33 @@ public abstract class GenericCRUDController<DTO extends GenericDTO> {
                 .detail(Translator.getTranslatedText(CodeMessages.SUCCESS_OPERATION))
                 .messages(service.getMessages())
                 .path(uri.toString())
-                .status(HttpStatus.CREATED.value())
-                .data(converter.toDto(newObj))
+                .status(HttpStatus.ACCEPTED.value())
+                .data(converter.toDto(objSaved))
             .build()     
         );
     }
-    
+
+    @JsonView(ResponseView.put.class)
+    @PutMapping(value = "/list")
+    public ResponseEntity<ResponseNotification> updateList(@RequestBody List<DTO> listDto) {
+        var entityList = new ArrayList<>();
+        for (DTO dto : listDto) {
+            var result = service.update(dto.getId(), converter.toEntity(dto));    
+            entityList.add(result);
+        }
+        List<DTO> resultList = entityList.stream().map(x -> converter.toDto(x)).toList();
+        return ResponseEntity.ok().body(
+            ResponseNotification.builder()
+                .timestamp(Instant.now())
+                .title(Translator.getTranslatedText(CodeMessages.SUCCESS))
+                .detail(Translator.getTranslatedText(CodeMessages.SUCCESS_OPERATION))
+                .messages(service.getMessages())
+                .status(HttpStatus.CREATED.value())
+                .data(resultList)
+            .build()     
+        );
+    }
+
     @JsonView(ResponseView.patch.class)
     @PatchMapping(value = "/{id}")
     public ResponseEntity<ResponseNotification> patch(@PathVariable UUID id, @RequestBody Map<String, Object> dto, HttpServletRequest request) {
@@ -143,6 +187,66 @@ public abstract class GenericCRUDController<DTO extends GenericDTO> {
         }
         return ResponseEntity.badRequest().build();
     }
+
+    @JsonView(ResponseView.patch.class)
+    @PatchMapping(value = "/list")
+    public ResponseEntity<ResponseNotification> patchMultiple(@RequestBody List<Map<String, Object>> dtoList, HttpServletRequest request) {
+        List<Object> updatedObjects = new ArrayList<>();
+
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+
+            for (Map<String, Object> dto : dtoList) {
+                if (!dto.containsKey("id")) {
+                    return ResponseEntity.badRequest().body(
+                        ResponseNotification.builder()
+                            .timestamp(Instant.now())
+                            .title(Translator.getTranslatedText("NO_ID_IN_REQUEST_BODY"))
+                            .detail("Missing 'id' in request body")
+                            .status(HttpStatus.BAD_REQUEST.value())
+                            .path(request.getRequestURI())
+                            .build()
+                    );
+                }
+
+                UUID id = UUID.fromString(dto.get("id").toString()); 
+                var entity = service.findById(id);
+
+                if (entity != null) {
+                    var newObj = objectMapper.convertValue(dto, entity.getClass());
+
+                    dto.forEach((nameProp, valueProp) -> {
+                        Field field = ReflectionUtils.findField(entity.getClass(), nameProp);
+                        if (field != null) {
+                            field.setAccessible(true);
+                            Object value = ReflectionUtils.getField(field, newObj);
+                            ReflectionUtils.setField(field, entity, value);
+                        }
+                    });
+
+                    var updatedEntity = service.update(id, entity);
+                    updatedObjects.add(converter.toDto(updatedEntity));
+                }
+            }
+
+            URI uri = ServletUriComponentsBuilder.fromCurrentRequest().build().toUri();
+            return ResponseEntity.ok().body(
+                ResponseNotification.builder()
+                    .timestamp(Instant.now())
+                    .title(Translator.getTranslatedText(CodeMessages.SUCCESS))
+                    .detail(Translator.getTranslatedText(CodeMessages.SUCCESS_OPERATION))
+                    .messages(service.getMessages())
+                    .path(uri.toString())
+                    .status(HttpStatus.CREATED.value())
+                    .data(updatedObjects)
+                    .build()
+            );
+
+        } catch (IllegalArgumentException ex) {
+            throw new HttpMessageNotReadableException("Error on parse", new ServletServerHttpRequest(request));
+        }
+    }
+
 
     @JsonView(ResponseView.delete.class)
     @DeleteMapping(value = "/{id}")

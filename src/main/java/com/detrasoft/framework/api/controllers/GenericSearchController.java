@@ -2,8 +2,6 @@ package com.detrasoft.framework.api.controllers;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.ParameterizedType;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -20,15 +18,12 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.detrasoft.framework.api.dto.SearchFieldDTO;
 import com.detrasoft.framework.api.dto.SearchReponseDTO;
-import com.detrasoft.framework.core.resource.ResourceFunctions;
 import com.detrasoft.framework.core.resource.Translator;
 import com.detrasoft.framework.crud.entities.FieldType;
 import com.detrasoft.framework.crud.entities.SearchConfiguration;
