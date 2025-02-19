@@ -224,7 +224,7 @@ public abstract class GenericCRUDController<DTO extends GenericDTO> {
                         }
                     });
 
-                    var updatedEntity = service.update(id, entity);
+                    var updatedEntity = service.update(entity);
                     updatedObjects.add(converter.toDto(updatedEntity));
                 }
             }
