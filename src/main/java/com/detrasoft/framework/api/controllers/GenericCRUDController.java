@@ -5,6 +5,7 @@ import com.detrasoft.framework.api.dto.GenericDTO;
 import com.detrasoft.framework.api.dto.converters.GenericEntityDTOConverter;
 import com.detrasoft.framework.core.notification.ResponseNotification;
 import com.detrasoft.framework.core.resource.Translator;
+import com.detrasoft.framework.crud.dtos.RequestImportDTO;
 import com.detrasoft.framework.crud.entities.GenericEntity;
 import com.detrasoft.framework.crud.services.crud.GenericCRUDService;
 import com.detrasoft.framework.enums.CodeMessages;
@@ -247,7 +248,6 @@ public abstract class GenericCRUDController<DTO extends GenericDTO> {
         }
     }
 
-
     @JsonView(ResponseView.delete.class)
     @DeleteMapping(value = "/{id}")
     public ResponseEntity<ResponseNotification> delete(@PathVariable UUID id) {
@@ -262,4 +262,20 @@ public abstract class GenericCRUDController<DTO extends GenericDTO> {
             .build()
         );    
     }
+
+    @SuppressWarnings("unchecked")
+	@PostMapping(value = "/import")
+	public ResponseEntity<ResponseNotification> importList(@RequestBody RequestImportDTO<DTO> requestImport) {
+        var entities = requestImport.getData().stream().map(converter::toEntity).toList();
+        var listResult = service.importList(entities, requestImport.getOperation(), requestImport.getKeys());
+        return ResponseEntity.ok().body(
+            ResponseNotification.builder()
+                .timestamp(Instant.now())
+                .title(Translator.getTranslatedText(CodeMessages.SUCCESS))
+                .detail(Translator.getTranslatedText(CodeMessages.SUCCESS_OPERATION))
+                .data(listResult)
+                .messages(service.getMessages())
+            .build()
+        );
+	}
 }
