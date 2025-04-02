@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.detrasoft.framework.api.dto.SearchFieldDTO;
 import com.detrasoft.framework.api.dto.SearchReponseDTO;
+import com.detrasoft.framework.core.context.GenericContext;
 import com.detrasoft.framework.core.resource.Translator;
 import com.detrasoft.framework.crud.entities.FieldType;
 import com.detrasoft.framework.crud.entities.SearchConfiguration;
@@ -94,6 +95,8 @@ public class GenericSearchController {
 		loadConfiguration(id);
 		SearchReponseDTO response = new SearchReponseDTO();
 		resultList = new ArrayList<>();
+		var detrasoftId = GenericContext.getContexts("detrasoftId");
+		from = from.replace(":detrasoft_id", detrasoftId);
 
 		// Converte os query parameters em uma lista de SearchFields
 		List<SearchField> searchFields = new ArrayList<>();
