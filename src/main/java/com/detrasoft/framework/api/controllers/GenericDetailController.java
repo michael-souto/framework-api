@@ -125,7 +125,9 @@ public abstract class GenericDetailController<DTO extends GenericDTO> {
 
     @JsonView(ResponseView.delete.class)
     @DeleteMapping(value = "/{idSubDetail}")
-    public ResponseEntity<ResponseNotification> deleteById(@PathVariable UUID idSubDetail) {
+    public ResponseEntity<ResponseNotification> deleteById(
+            @PathVariable(value = "idDetail") UUID idDetail,
+            @PathVariable UUID idSubDetail) {
         service.delete(idSubDetail);
         return ResponseEntity.ok().body(
                 ResponseNotification.builder()
