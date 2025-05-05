@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -95,6 +96,8 @@ public class GenericSearchController {
 		loadConfiguration(id);
 		SearchReponseDTO response = new SearchReponseDTO();
 		resultList = new ArrayList<>();
+
+		//detrasoftId
 		var detrasoftId = GenericContext.getContexts("detrasoftId");
 		from = from.replace(":detrasoft_id", detrasoftId);
 
@@ -114,8 +117,13 @@ public class GenericSearchController {
 				searchFields.add(searchField);
 			}
 		});
-
+		//userId
+		var userId = GenericContext.getContexts("userId");
+		if (userId != null && where != null) {
+			where = where.replace(":userId", userId);
+		}
 		String query = getSQLNativeCommand(searchFields);
+
 		List<Object[]> resultSQL;
 		if (!unpaged) {
 			resultSQL = searchRepository.findNativeSQL(query, pageable);
@@ -178,22 +186,34 @@ public class GenericSearchController {
 					whereSQL = whereSQL + "date_trunc('day'," + columnName + ") = '" + value + "'";
 				} // RANGE of DATE
 				else if (searchFields.get(i).getType().equals(FieldType.rangedate)) {
-					List<String> valueList = (List<String>) searchFields.get(i).getValue();
+					List<String> valueList = Arrays.asList(searchFields.get(i).getValue().toString().split(";"));
 					valueList.removeIf(d -> d == null);
-					DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+					DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy");
 					if (valueList.size() == 2) {
-						ZonedDateTime initDate = ZonedDateTime.parse(valueList.get(0), DateTimeFormatter.ISO_DATE_TIME);
-						String initDateFormatted = initDate.format(formatter);
-						ZonedDateTime endDate = ZonedDateTime.parse(valueList.get(1), DateTimeFormatter.ISO_DATE_TIME);
-						String endDateFormatted = endDate.format(formatter);
-						whereSQL = whereSQL + columnName + " BETWEEN '" + initDateFormatted + "' AND '"
-								+ endDateFormatted + "' ";
+						whereSQL = whereSQL + 
+						"date_trunc('day'," + columnName + ")" 
+							+ " BETWEEN date_trunc('day', TIMESTAMP WITH TIME ZONE '" + valueList.get(0) 
+							+ "') AND date_trunc('day', TIMESTAMP WITH TIME ZONE '" + valueList.get(1) + "')";
 					} else if (valueList.size() == 1) {
 						ZonedDateTime date = ZonedDateTime.parse(valueList.get(0), DateTimeFormatter.ISO_DATE_TIME);
 						String dateFormatted = date.format(formatter);
 						whereSQL = whereSQL + "date_trunc('day'," + columnName + ") = '" + dateFormatted + "'";
 					}
-				} // CURRENCY 
+				} // RANGE of DATETIME
+				else if (searchFields.get(i).getType().equals(FieldType.rangedatetime)) {
+					List<String> valueList = Arrays.asList(searchFields.get(i).getValue().toString().split(";"));
+					valueList.removeIf(d -> d == null);
+					DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy");
+					if (valueList.size() == 2) {
+						whereSQL = whereSQL + columnName + " BETWEEN '" + valueList.get(0) 
+							+ "' AND '" + valueList.get(1) + "' ";
+					} else if (valueList.size() == 1) {
+						ZonedDateTime date = ZonedDateTime.parse(valueList.get(0), DateTimeFormatter.ISO_DATE_TIME);
+						String dateFormatted = date.format(formatter);
+						whereSQL = whereSQL + "date_trunc('day'," + columnName + ") = '" + dateFormatted + "'";
+					}
+				}
+				// CURRENCY 
 				else if (searchFields.get(i).getType().equals(FieldType.currency)) {
 					String value = searchFields.get(i).getValue().toString().replace(" ", "%");
 					whereSQL = whereSQL + columnName + " = " + value.replace(',', '.');
