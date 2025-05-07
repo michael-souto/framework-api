@@ -201,16 +201,22 @@ public class GenericSearchController {
 					}
 				} // RANGE of DATETIME
 				else if (searchFields.get(i).getType().equals(FieldType.rangedatetime)) {
-					List<String> valueList = Arrays.asList(searchFields.get(i).getValue().toString().split(";"));
-					valueList.removeIf(d -> d == null);
 					DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy");
-					if (valueList.size() == 2) {
-						whereSQL = whereSQL + columnName + " BETWEEN '" + valueList.get(0) 
-							+ "' AND '" + valueList.get(1) + "' ";
-					} else if (valueList.size() == 1) {
-						ZonedDateTime date = ZonedDateTime.parse(valueList.get(0), DateTimeFormatter.ISO_DATE_TIME);
-						String dateFormatted = date.format(formatter);
-						whereSQL = whereSQL + "date_trunc('day'," + columnName + ") = '" + dateFormatted + "'";
+					
+					if (searchFields.get(i).getValue().toString().indexOf("-to-") > 0
+							&& searchFields.get(i).getValue().toString().split("-to-").length == 2) {
+						List<String> valueList = Arrays.asList(searchFields.get(i).getValue().toString().split("-to-"));
+						valueList.removeIf(d -> d == null);
+						whereSQL = whereSQL + " ( " + columnName + " AT TIME ZONE 'UTC') BETWEEN '" + valueList.get(0) + "'::timestamptz AND '" + valueList.get(1) + "'::timestamptz ";
+						
+					} else {
+						List<String> valueList = Arrays.asList(searchFields.get(i).getValue().toString().split(","));
+						valueList.removeIf(d -> d == null);
+						for (String d : valueList) {
+							ZonedDateTime date = ZonedDateTime.parse(d, DateTimeFormatter.ISO_DATE_TIME);
+							String dateFormatted = date.format(formatter);
+							whereSQL = whereSQL + "date_trunc('day'," + columnName + ") = '" + dateFormatted + "'";
+						}
 					}
 				}
 				// CURRENCY 
