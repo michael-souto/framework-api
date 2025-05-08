@@ -207,7 +207,7 @@ public class GenericSearchController {
 							&& searchFields.get(i).getValue().toString().split("-to-").length == 2) {
 						List<String> valueList = Arrays.asList(searchFields.get(i).getValue().toString().split("-to-"));
 						valueList.removeIf(d -> d == null);
-						whereSQL = whereSQL + " ( " + columnName + " AT TIME ZONE 'UTC') BETWEEN '" + valueList.get(0) + "'::timestamptz AND '" + valueList.get(1) + "'::timestamptz ";
+						whereSQL = whereSQL + " ( " + columnName + " ) BETWEEN '" + valueList.get(0) + "'::timestamptz AND '" + valueList.get(1) + "'::timestamptz ";
 						
 					} else {
 						List<String> valueList = Arrays.asList(searchFields.get(i).getValue().toString().split(","));
