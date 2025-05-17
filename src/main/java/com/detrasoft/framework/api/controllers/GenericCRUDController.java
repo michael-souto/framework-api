@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 public abstract class GenericCRUDController<DTO extends GenericDTO> {
 
@@ -278,4 +279,36 @@ public abstract class GenericCRUDController<DTO extends GenericDTO> {
             .build()
         );
 	}
+
+    protected <T> ResponseEntity<ResponseNotification> executeOperation(Supplier<T> operation) {
+        try {
+            T result = operation.get();
+            URI uri = ServletUriComponentsBuilder.fromCurrentRequest().build().toUri();
+    
+            ResponseNotification response = ResponseNotification.builder()
+                .timestamp(Instant.now())
+                .title(Translator.getTranslatedText(CodeMessages.SUCCESS))
+                .detail(Translator.getTranslatedText(CodeMessages.SUCCESS_OPERATION))
+                .messages(service.getMessages())
+                .path(uri.toString())
+                .status(HttpStatus.ACCEPTED.value())
+                .data(converter.toDto(result))
+                .build();
+    
+            return ResponseEntity.ok().body(response);
+    
+        } catch (Exception ex) {
+            // Tratamento genérico de erro
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                ResponseNotification.builder()
+                    .timestamp(Instant.now())
+                    .title(Translator.getTranslatedText(CodeMessages.ERROR))
+                    .detail(ex.getMessage())
+                    .messages(service.getMessages())
+                    .path(ServletUriComponentsBuilder.fromCurrentRequest().build().toUri().toString())
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                    .build()
+            );
+        }
+    }
 }
