@@ -9,20 +9,29 @@ import com.detrasoft.framework.crud.entities.GenericEntity;
 import com.detrasoft.framework.crud.services.crud.GenericCRUDService;
 import com.detrasoft.framework.enums.CodeMessages;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.http.server.ServletServerHttpRequest;
+import org.springframework.util.ReflectionUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+
+import java.lang.reflect.Field;
 import java.net.URI;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 public abstract class GenericDetailController<DTO extends GenericDTO> {
@@ -137,5 +146,41 @@ public abstract class GenericDetailController<DTO extends GenericDTO> {
                         .messages(service.getMessages())
                         .status(HttpStatus.OK.value())
                         .build());
+    }
+
+    @JsonView(ResponseView.patch.class)
+    @PatchMapping(value = "/{idSubDetail}")
+    public ResponseEntity<ResponseNotification> patch(@PathVariable(value = "idDetail") UUID idDetail, @PathVariable UUID idSubDetail, @RequestBody Map<String, Object> dto, HttpServletRequest request) {
+        var objSaved = service.findById(idSubDetail);
+        if (objSaved != null) {
+            try {
+                ObjectMapper objectMapper = new ObjectMapper();
+                var newObj = objectMapper.convertValue(dto, objSaved.getClass());
+                var finalNewDto = newObj;
+                dto.forEach((nameProp, valueProp) -> {
+                    Field field = ReflectionUtils.findField(objSaved.getClass(), nameProp);
+                    Objects.requireNonNull(field).setAccessible(true);
+                    Object value = ReflectionUtils.getField(field, finalNewDto);
+                    ReflectionUtils.setField(field, objSaved, value);
+                });
+                newObj = service.update(idSubDetail, objSaved);
+                URI uri = ServletUriComponentsBuilder.fromCurrentRequest().build().toUri();
+                return ResponseEntity.ok().body(
+                    ResponseNotification.builder()
+                        .timestamp(Instant.now())
+                        .title(Translator.getTranslatedText(CodeMessages.SUCCESS))
+                        .detail(Translator.getTranslatedText(CodeMessages.SUCCESS_OPERATION))
+                        .messages(service.getMessages())
+                        .path(uri.toString())
+                        .status(HttpStatus.CREATED.value())
+                        .data(converter.toDto(newObj))
+                    .build()     
+                );
+            
+            } catch (IllegalArgumentException ex) {
+                throw new HttpMessageNotReadableException("Error on parse", new ServletServerHttpRequest(request));
+            }
+        }
+        return ResponseEntity.badRequest().build();
     }
 }
