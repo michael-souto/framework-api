@@ -42,8 +42,6 @@ import org.springframework.core.io.Resource;
 @RequestMapping("/search")
 public class GenericSearchController {
 
-
-
 	private List<SearchConfiguration> searchConfigurations = new ArrayList<>();
 
 	public GenericSearchController () throws IOException {
@@ -100,7 +98,15 @@ public class GenericSearchController {
 
 		//detrasoftId
 		var detrasoftId = GenericContext.getContexts("detrasoftId");
-		from = from.replace(":detrasoft_id", detrasoftId);
+		if (from != null) 
+			from = from.replace(":detrasoft_id", detrasoftId);
+		if (where != null) 
+			where = where.replace(":detrasoft_id", detrasoftId);
+		if (groupBy != null) 
+			groupBy = groupBy.replace(":detrasoft_id", detrasoftId);
+		if (orderBy != null) 
+			orderBy = orderBy.replace(":detrasoft_id", detrasoftId);
+		
 
 		// Converte os query parameters em uma lista de SearchFields
 		List<SearchField> searchFields = new ArrayList<>();
@@ -123,9 +129,15 @@ public class GenericSearchController {
 		});
 		//userId
 		var userId = GenericContext.getContexts("userId");
-		if (userId != null && where != null) {
+		if (from != null) 
+			from = from.replace(":userId", userId);
+		if (where != null) 
 			where = where.replace(":userId", userId);
-		}
+		if (groupBy != null) 
+			groupBy = groupBy.replace(":userId", userId);
+		if (orderBy != null) 
+		orderBy = orderBy.replace(":userId", userId);
+	
 		if (customSearchFields.size() > 0 && where != null) {
 			for (Map.Entry<String, String> entry : customSearchFields.entrySet()) {
 				String key         = entry.getKey();
