@@ -1,6 +1,8 @@
 package com.detrasoft.framework.api.controllers.exceptions;
 
+import com.detrasoft.framework.core.notification.Message;
 import com.detrasoft.framework.crud.services.exceptions.DatabaseException;
+import com.detrasoft.framework.crud.services.exceptions.EntityValidationException;
 import com.detrasoft.framework.crud.services.exceptions.ResourceNotFoundException;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -127,6 +129,25 @@ public class ResourceExceptionHandler {
 			}
 		}
 
+
+		return ResponseEntity.status(status).body(err);
+	}
+
+	@ExceptionHandler(EntityValidationException.class)
+	public ResponseEntity<StandardError> database(EntityValidationException e, HttpServletRequest request) {
+		HttpStatus status = HttpStatus.BAD_REQUEST;
+
+		ValidationError err = ValidationError.standardBuilder()
+				.timestamp(Instant.now())
+				.status(status.value())
+				.title("Validation exception")
+				.detail("Erros na entrada das informações, consulte as mensagens para mais detalhes")
+				.path(request.getRequestURI())
+				.build();
+
+		for (Message message : e.getMessages()) {
+			err.addError(message.getTarget(), message.getDescription());
+		}
 
 		return ResponseEntity.status(status).body(err);
 	}
