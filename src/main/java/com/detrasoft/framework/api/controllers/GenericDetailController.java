@@ -10,6 +10,8 @@ import com.detrasoft.framework.crud.services.crud.GenericCRUDService;
 import com.detrasoft.framework.enums.CodeMessages;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -150,7 +152,7 @@ public abstract class GenericDetailController<DTO extends GenericDTO> {
 
     @JsonView(ResponseView.patch.class)
     @PatchMapping(value = "/{idSubDetail}")
-    public ResponseEntity<ResponseNotification> patch(@PathVariable(value = "idDetail") UUID idDetail, @PathVariable UUID idSubDetail, @RequestBody Map<String, Object> dto, HttpServletRequest request) {
+    public ResponseEntity<ResponseNotification> patch(@PathVariable UUID idSubDetail, @RequestBody Map<String, Object> dto, HttpServletRequest request) {
         var objSaved = service.findById(idSubDetail);
         if (objSaved != null) {
             try {
@@ -182,5 +184,67 @@ public abstract class GenericDetailController<DTO extends GenericDTO> {
             }
         }
         return ResponseEntity.badRequest().build();
+    }
+
+
+    @JsonView(ResponseView.patch.class)
+    @PatchMapping(value = "/list")
+    public ResponseEntity<ResponseNotification> patchMultiple(@RequestBody List<Map<String, Object>> dtoList, HttpServletRequest request) {
+        List<Object> updatedObjects = new ArrayList<>();
+
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+            objectMapper.registerModule(new JavaTimeModule());
+            objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+
+            for (Map<String, Object> dto : dtoList) {
+                if (!dto.containsKey("id")) {
+                    return ResponseEntity.badRequest().body(
+                        ResponseNotification.builder()
+                            .timestamp(Instant.now())
+                            .title(Translator.getTranslatedText("NO_ID_IN_REQUEST_BODY"))
+                            .detail("Missing 'id' in request body")
+                            .status(HttpStatus.BAD_REQUEST.value())
+                            .path(request.getRequestURI())
+                            .build()
+                    );
+                }
+
+                UUID id = UUID.fromString(dto.get("id").toString()); 
+                var entity = service.findById(id);
+
+                if (entity != null) {
+                    var newObj = objectMapper.convertValue(dto, entity.getClass());
+
+                    dto.forEach((nameProp, valueProp) -> {
+                        Field field = ReflectionUtils.findField(entity.getClass(), nameProp);
+                        if (field != null) {
+                            field.setAccessible(true);
+                            Object value = ReflectionUtils.getField(field, newObj);
+                            ReflectionUtils.setField(field, entity, value);
+                        }
+                    });
+
+                    var updatedEntity = service.update(id, entity);
+                    updatedObjects.add(converter.toDto(updatedEntity));
+                }
+            }
+
+            URI uri = ServletUriComponentsBuilder.fromCurrentRequest().build().toUri();
+            return ResponseEntity.ok().body(
+                ResponseNotification.builder()
+                    .timestamp(Instant.now())
+                    .title(Translator.getTranslatedText(CodeMessages.SUCCESS))
+                    .detail(Translator.getTranslatedText(CodeMessages.SUCCESS_OPERATION))
+                    .messages(service.getMessages())
+                    .path(uri.toString())
+                    .status(HttpStatus.CREATED.value())
+                    .data(updatedObjects)
+                    .build()
+            );
+
+        } catch (IllegalArgumentException ex) {
+            throw new HttpMessageNotReadableException("Error on parse", new ServletServerHttpRequest(request));
+        }
     }
 }
