@@ -79,7 +79,6 @@ public class GenericSearchController {
 	public ResponseEntity<SearchReponseDTO> search(@PathVariable String id, @RequestParam Map<String, String> queryParams,
 			@RequestParam(name = "unpaged", required = false) boolean unpaged, Pageable pageable) {
 
-
 		SearchConfiguration config = getSearchConfigurationById(id);
 		if (config == null) {
 			return ResponseEntity.notFound().build();
@@ -95,18 +94,6 @@ public class GenericSearchController {
 
 		SearchReponseDTO response = new SearchReponseDTO();
 		resultList = new ArrayList<>();
-
-		//detrasoftId
-		var detrasoftId = GenericContext.getContexts("detrasoftId");
-		if (from != null) 
-			from = from.replace(":detrasoft_id", detrasoftId);
-		if (where != null) 
-			where = where.replace(":detrasoft_id", detrasoftId);
-		if (groupBy != null) 
-			groupBy = groupBy.replace(":detrasoft_id", detrasoftId);
-		if (orderBy != null) 
-			orderBy = orderBy.replace(":detrasoft_id", detrasoftId);
-		
 
 		// Converte os query parameters em uma lista de SearchFields
 		List<SearchField> searchFields = new ArrayList<>();
@@ -127,16 +114,6 @@ public class GenericSearchController {
 				customSearchFields.put(key, value);
 			}
 		});
-		//userId
-		var userId = GenericContext.getContexts("userId");
-		if (from != null) 
-			from = from.replace(":userId", userId);
-		if (where != null) 
-			where = where.replace(":userId", userId);
-		if (groupBy != null) 
-			groupBy = groupBy.replace(":userId", userId);
-		if (orderBy != null) 
-		orderBy = orderBy.replace(":userId", userId);
 	
 		if (customSearchFields.size() > 0 && where != null) {
 			for (Map.Entry<String, String> entry : customSearchFields.entrySet()) {
@@ -181,6 +158,8 @@ public class GenericSearchController {
 			}
 		}
 		String query = getSQLNativeCommand(searchFields, columns, from, where, groupBy, orderBy);
+		query = query.replace(":userId", GenericContext.getContexts("userId"));
+		query = query.replace(":detrasoft_id", GenericContext.getContexts("detrasoftId"));
 
 		List<Object[]> resultSQL;
 		if (!unpaged) {
