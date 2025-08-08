@@ -18,6 +18,7 @@ import jakarta.validation.Valid;
 import java.net.URI;
 import java.time.Instant;
 
+@SuppressWarnings({"rawtypes", "unchecked"})
 public abstract class GenericInsertController<DTO extends GenericDTO> {
 
     protected GenericInsertService service;

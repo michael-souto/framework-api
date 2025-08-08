@@ -23,6 +23,7 @@ import java.lang.reflect.ParameterizedType;
 import java.net.URI;
 import java.util.UUID;
 
+@SuppressWarnings({"rawtypes", "unchecked"})
 public abstract class GenericHateoasDetailController<DTO extends GenericRepresentationModelDTO<? extends DTO>> {
 
     protected GenericCRUDService service;
@@ -81,7 +82,7 @@ public abstract class GenericHateoasDetailController<DTO extends GenericRepresen
         var paged = new PageImpl<DTO>(
                 list.getContent().stream()
                         .map(obj -> assembler.toModel(obj, idDetail)).toList(), pageable, list.getTotalElements());
-        return ResponseEntity.ok().body(pagedAssembler.toModel((Page) list, (RepresentationModelAssembler) assembler));
+        return ResponseEntity.ok().body(pagedAssembler.toModel(paged, (RepresentationModelAssembler) assembler));
     }
 
     protected Page<? extends GenericEntity> findAllByIdDetail(UUID idDetail, Pageable pageable) {
@@ -95,7 +96,6 @@ public abstract class GenericHateoasDetailController<DTO extends GenericRepresen
         return ResponseEntity.noContent().build();
     }
 
-    @SuppressWarnings("unchecked")
     private Class<?> getGenericClass() {
         ParameterizedType type = (ParameterizedType) getClass().getGenericSuperclass();
         return ((Class<DTO>) (type).getActualTypeArguments()[0]);

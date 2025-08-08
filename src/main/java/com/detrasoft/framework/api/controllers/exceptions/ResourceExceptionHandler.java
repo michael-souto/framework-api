@@ -1,8 +1,6 @@
 package com.detrasoft.framework.api.controllers.exceptions;
 
-import com.detrasoft.framework.core.notification.Message;
 import com.detrasoft.framework.crud.services.exceptions.DatabaseException;
-import com.detrasoft.framework.crud.services.exceptions.EntityValidationException;
 import com.detrasoft.framework.crud.services.exceptions.ResourceNotFoundException;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,7 +27,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import java.time.Instant;
 
-
+@SuppressWarnings("null")
 @ControllerAdvice
 public class ResourceExceptionHandler {
 
@@ -187,7 +185,7 @@ public class ResourceExceptionHandler {
 							LocaleContextHolder.getLocale())
 					};
 			detail = messageSource.getMessage(
-					"InvalidFormatException",
+					"error.invalid_format_exception",
 					args,
 					LocaleContextHolder.getLocale());
 		}

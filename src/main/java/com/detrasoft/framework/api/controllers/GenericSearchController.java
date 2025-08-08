@@ -2,13 +2,9 @@ package com.detrasoft.framework.api.controllers;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,7 +36,17 @@ import org.springframework.core.io.Resource;
 
 @RestController
 @RequestMapping("/search")
+@SuppressWarnings("unchecked")
 public class GenericSearchController {
+
+	private List<Map<String, Object>> resultList;
+
+	private List<SearchField> columns;
+	private String title;
+	private String from;
+	private String where;
+	private String groupBy;
+	private String orderBy;
 
 	private List<SearchConfiguration> searchConfigurations = new ArrayList<>();
 
@@ -51,7 +57,18 @@ public class GenericSearchController {
 	@Autowired
 	SearchRepository searchRepository;
 
-	
+	private void loadConfiguration(String configurationId) {
+		var config = getSearchConfigurationById(configurationId);
+		if (config != null) {
+			title = Translator.getTranslatedText(config.getTitle());
+			from = config.getFrom();
+			where = config.getWhere();
+			groupBy = config.getGroupBy();
+			orderBy = config.getOrderBy();
+			columns = config.getColumns();
+		}
+	}
+
 	private SearchConfiguration getSearchConfigurationById(String id) {
 		Optional<SearchConfiguration> config = searchConfigurations.stream()
 				.filter(c -> c.getId().equalsIgnoreCase(id))
@@ -65,39 +82,25 @@ public class GenericSearchController {
 
 	@GetMapping(value = "/{id}/columns")
 	public ResponseEntity<SearchReponseDTO> getSchema(@PathVariable String id) {
-		SearchConfiguration config = getSearchConfigurationById(id);
-		if (config == null) {
-			return ResponseEntity.notFound().build();
-		}
+		loadConfiguration(id);
 		SearchReponseDTO response = new SearchReponseDTO();
-		response.setColumns(convertColumnsToDTO(config.getColumns()));
-		response.setTitle(Translator.getTranslatedText(config.getTitle()));
+		
+		response.setColumns(convertColumnsToDTO(columns));
+		response.setTitle(title);
 		return ResponseEntity.ok(response);
 	}
 
 	@GetMapping(value = "/{id}")
 	public ResponseEntity<SearchReponseDTO> search(@PathVariable String id, @RequestParam Map<String, String> queryParams,
 			@RequestParam(name = "unpaged", required = false) boolean unpaged, Pageable pageable) {
-
-		SearchConfiguration config = getSearchConfigurationById(id);
-		if (config == null) {
-			return ResponseEntity.notFound().build();
-		}
-		//Declarando as variáveis
-		List<Map<String, Object>> resultList = new ArrayList<>();
-		List<SearchField> columns = config.getColumns();
-		String title = Translator.getTranslatedText(config.getTitle());
-		String from = config.getFrom();
-		String where = config.getWhere();
-		String groupBy = config.getGroupBy();
-		String orderBy = config.getOrderBy();
-
+		loadConfiguration(id);
 		SearchReponseDTO response = new SearchReponseDTO();
 		resultList = new ArrayList<>();
+		var detrasoftId = GenericContext.getContexts("detrasoftId");
+		from = from.replace(":detrasoft_id", detrasoftId);
 
 		// Converte os query parameters em uma lista de SearchFields
 		List<SearchField> searchFields = new ArrayList<>();
-		Map<String, String> customSearchFields = new HashMap<>();
 		queryParams.forEach((key, value) -> {
 			// Procura a coluna correspondente na configuração
 			Optional<SearchField> matchingColumn = columns.stream()
@@ -110,57 +113,10 @@ public class GenericSearchController {
 				searchField.setType(matchingColumn.get().getType());
 				searchField.setColumnName(matchingColumn.get().getColumnName());
 				searchFields.add(searchField);
-			} else {
-				customSearchFields.put(key, value);
 			}
 		});
-	
-		if (customSearchFields.size() > 0 && where != null) {
-			for (Map.Entry<String, String> entry : customSearchFields.entrySet()) {
-				String key         = entry.getKey();
-				String rawValue    = entry.getValue();
-				String placeholder = ":" + key;
-		
-				// inteiro
-				if (rawValue.matches("^-?\\d+$")) {
-					where = where.replace(placeholder, rawValue);
-				}
-				// decimal
-				else if (rawValue.matches("^-?\\d+\\.\\d+$")) {
-					where = where.replace(placeholder, rawValue);
-				}
-				// GUID simples
-				else if (rawValue.matches("^[0-9a-fA-F\\-]{36}$")) {
-					where = where.replace(placeholder, rawValue);
-				}
-				// data ou datetime ISO-8601 (ex: 2025-05-01 ou 2025-05-01T15:30:00Z)
-				else if (rawValue.matches("^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}:\\d{2})?$")) {
-					String formatted;
-					if (rawValue.contains("T")) {
-						// parseia "2025-05-19T19:47:07"
-						LocalDateTime ldt = LocalDateTime.parse(rawValue, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-						// anexa a zona do servidor (ou use ZoneId.of("America/Sao_Paulo") se preferir fixa)
-						ZonedDateTime zdt = ldt.atZone(ZoneOffset.UTC);
-						// formata algo como "2025-05-19T19:47:07-03:00"
-						formatted = zdt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
-					} else {
-						// parseia só "2025-05-19"
-						LocalDate d = LocalDate.parse(rawValue, DateTimeFormatter.ISO_LOCAL_DATE);
-						formatted = d.format(DateTimeFormatter.ISO_LOCAL_DATE);
-					}
-					// substitui com aspas para SQL
-					where = where.replace(placeholder, formatted);
-				}
-				// tudo o mais cai aqui como string
-				else {
-					where = where.replace(placeholder, rawValue);
-				}
-			}
-		}
-		String query = getSQLNativeCommand(searchFields, columns, from, where, groupBy, orderBy);
-		query = query.replace(":userId", GenericContext.getContexts("userId"));
-		query = query.replace(":detrasoft_id", GenericContext.getContexts("detrasoftId"));
 
+		String query = getSQLNativeCommand(searchFields);
 		List<Object[]> resultSQL;
 		if (!unpaged) {
 			resultSQL = searchRepository.findNativeSQL(query, pageable);
@@ -188,7 +144,7 @@ public class GenericSearchController {
 		return ResponseEntity.ok(response);
 	}
 
-	private String getSQLNativeCommand(List<SearchField> searchFields, List<SearchField> columns, String from, String where, String groupBy, String orderBy) {
+	private String getSQLNativeCommand(List<SearchField> searchFields) {
 		String selectSQL = "SELECT ";
 		for (int i = 0; i < columns.size(); i++) {
 			selectSQL = selectSQL + columns.get(i).getColumnName() + " AS C" + i + " ";
@@ -223,40 +179,22 @@ public class GenericSearchController {
 					whereSQL = whereSQL + "date_trunc('day'," + columnName + ") = '" + value + "'";
 				} // RANGE of DATE
 				else if (searchFields.get(i).getType().equals(FieldType.rangedate)) {
-					List<String> valueList = Arrays.asList(searchFields.get(i).getValue().toString().split(";"));
+					List<String> valueList = (List<String>) searchFields.get(i).getValue();
 					valueList.removeIf(d -> d == null);
-					DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy");
+					DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 					if (valueList.size() == 2) {
-						whereSQL = whereSQL + 
-						"date_trunc('day'," + columnName + ")" 
-							+ " BETWEEN date_trunc('day', TIMESTAMP WITH TIME ZONE '" + valueList.get(0) 
-							+ "') AND date_trunc('day', TIMESTAMP WITH TIME ZONE '" + valueList.get(1) + "')";
+						ZonedDateTime initDate = ZonedDateTime.parse(valueList.get(0), DateTimeFormatter.ISO_DATE_TIME);
+						String initDateFormatted = initDate.format(formatter);
+						ZonedDateTime endDate = ZonedDateTime.parse(valueList.get(1), DateTimeFormatter.ISO_DATE_TIME);
+						String endDateFormatted = endDate.format(formatter);
+						whereSQL = whereSQL + columnName + " BETWEEN '" + initDateFormatted + "' AND '"
+								+ endDateFormatted + "' ";
 					} else if (valueList.size() == 1) {
 						ZonedDateTime date = ZonedDateTime.parse(valueList.get(0), DateTimeFormatter.ISO_DATE_TIME);
 						String dateFormatted = date.format(formatter);
 						whereSQL = whereSQL + "date_trunc('day'," + columnName + ") = '" + dateFormatted + "'";
 					}
-				} // RANGE of DATETIME
-				else if (searchFields.get(i).getType().equals(FieldType.rangedatetime)) {
-					DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy");
-					
-					if (searchFields.get(i).getValue().toString().indexOf("-to-") > 0
-							&& searchFields.get(i).getValue().toString().split("-to-").length == 2) {
-						List<String> valueList = Arrays.asList(searchFields.get(i).getValue().toString().split("-to-"));
-						valueList.removeIf(d -> d == null);
-						whereSQL = whereSQL + " ( " + columnName + " ) BETWEEN '" + valueList.get(0) + "'::timestamptz AND '" + valueList.get(1) + "'::timestamptz ";
-						
-					} else {
-						List<String> valueList = Arrays.asList(searchFields.get(i).getValue().toString().split(","));
-						valueList.removeIf(d -> d == null);
-						for (String d : valueList) {
-							ZonedDateTime date = ZonedDateTime.parse(d, DateTimeFormatter.ISO_DATE_TIME);
-							String dateFormatted = date.format(formatter);
-							whereSQL = whereSQL + "date_trunc('day'," + columnName + ") = '" + dateFormatted + "'";
-						}
-					}
-				}
-				// CURRENCY 
+				} // CURRENCY 
 				else if (searchFields.get(i).getType().equals(FieldType.currency)) {
 					String value = searchFields.get(i).getValue().toString().replace(" ", "%");
 					whereSQL = whereSQL + columnName + " = " + value.replace(',', '.');

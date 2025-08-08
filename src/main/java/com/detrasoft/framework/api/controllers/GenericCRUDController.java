@@ -11,9 +11,6 @@ import com.detrasoft.framework.crud.services.crud.GenericCRUDService;
 import com.detrasoft.framework.enums.CodeMessages;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -35,8 +32,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.function.Supplier;
 
+@SuppressWarnings({ "rawtypes", "unchecked" })
 public abstract class GenericCRUDController<DTO extends GenericDTO> {
 
     protected GenericCRUDService service;
@@ -54,14 +51,14 @@ public abstract class GenericCRUDController<DTO extends GenericDTO> {
         Page<?> list = getAllPaged(pageable);
         Page<DTO> resultList = new PageImpl<DTO>(
                 list.getContent().stream()
-                        .map(obj -> converter.toDto(obj)).toList(), pageable, list.getTotalElements());
+                        .map(obj -> converter.toDto(obj)).toList(),
+                pageable, list.getTotalElements());
         return ResponseEntity.ok().body(resultList);
     }
 
     protected Page<? extends GenericEntity> getAllPaged(Pageable pageable) {
         return service.findAllPaged(pageable);
     }
-
 
     @JsonView(ResponseView.findById.class)
     @GetMapping(value = "/{id}")
@@ -74,7 +71,6 @@ public abstract class GenericCRUDController<DTO extends GenericDTO> {
         return service.findById(UUID.fromString(id));
     }
 
-
     @JsonView(ResponseView.post.class)
     @PostMapping
     public ResponseEntity<ResponseNotification> insert(@RequestBody @Valid DTO dto) {
@@ -83,16 +79,15 @@ public abstract class GenericCRUDController<DTO extends GenericDTO> {
                 .buildAndExpand(newObj.getId()).toUri();
 
         return ResponseEntity.created(uri).body(
-            ResponseNotification.builder()
-                .timestamp(Instant.now())
-                .title(Translator.getTranslatedText(CodeMessages.SUCCESS))
-                .detail(Translator.getTranslatedText(CodeMessages.SUCCESS_OPERATION))
-                .messages(service.getMessages())
-                .path(uri.toString())
-                .status(HttpStatus.CREATED.value())
-                .data(converter.toDto(newObj))
-            .build()
-        );
+                ResponseNotification.builder()
+                        .timestamp(Instant.now())
+                        .title(Translator.getTranslatedText(CodeMessages.SUCCESS))
+                        .detail(Translator.getTranslatedText(CodeMessages.SUCCESS_OPERATION))
+                        .messages(service.getMessages())
+                        .path(uri.toString())
+                        .status(HttpStatus.CREATED.value())
+                        .data(converter.toDto(newObj))
+                        .build());
     }
 
     @JsonView(ResponseView.post.class)
@@ -104,16 +99,15 @@ public abstract class GenericCRUDController<DTO extends GenericDTO> {
             entityList.add(result);
         }
         List<DTO> resultList = entityList.stream().map(x -> converter.toDto(x)).toList();
-        return ResponseEntity.created(null).body(
-            ResponseNotification.builder()
-                .timestamp(Instant.now())
-                .title(Translator.getTranslatedText(CodeMessages.SUCCESS))
-                .detail(Translator.getTranslatedText(CodeMessages.SUCCESS_OPERATION))
-                .messages(service.getMessages())
-                .status(HttpStatus.CREATED.value())
-                .data(resultList)
-            .build()
-        );
+        return ResponseEntity.created(ServletUriComponentsBuilder.fromCurrentRequest().build().toUri()).body(
+                ResponseNotification.builder()
+                        .timestamp(Instant.now())
+                        .title(Translator.getTranslatedText(CodeMessages.SUCCESS))
+                        .detail(Translator.getTranslatedText(CodeMessages.SUCCESS_OPERATION))
+                        .messages(service.getMessages())
+                        .status(HttpStatus.CREATED.value())
+                        .data(resultList)
+                        .build());
     }
 
     @JsonView(ResponseView.put.class)
@@ -124,16 +118,15 @@ public abstract class GenericCRUDController<DTO extends GenericDTO> {
         URI uri = ServletUriComponentsBuilder.fromCurrentRequest().build().toUri();
 
         return ResponseEntity.ok().body(
-            ResponseNotification.builder()
-                .timestamp(Instant.now())
-                .title(Translator.getTranslatedText(CodeMessages.SUCCESS))
-                .detail(Translator.getTranslatedText(CodeMessages.SUCCESS_OPERATION))
-                .messages(service.getMessages())
-                .path(uri.toString())
-                .status(HttpStatus.ACCEPTED.value())
-                .data(converter.toDto(objSaved))
-            .build()     
-        );
+                ResponseNotification.builder()
+                        .timestamp(Instant.now())
+                        .title(Translator.getTranslatedText(CodeMessages.SUCCESS))
+                        .detail(Translator.getTranslatedText(CodeMessages.SUCCESS_OPERATION))
+                        .messages(service.getMessages())
+                        .path(uri.toString())
+                        .status(HttpStatus.ACCEPTED.value())
+                        .data(converter.toDto(objSaved))
+                        .build());
     }
 
     @JsonView(ResponseView.put.class)
@@ -141,32 +134,32 @@ public abstract class GenericCRUDController<DTO extends GenericDTO> {
     public ResponseEntity<ResponseNotification> updateList(@RequestBody List<DTO> listDto) {
         var entityList = new ArrayList<>();
         for (DTO dto : listDto) {
-            var result = service.update(dto.getId(), converter.toEntity(dto));    
+            var result = service.update(dto.getId(), converter.toEntity(dto));
             entityList.add(result);
         }
         List<DTO> resultList = entityList.stream().map(x -> converter.toDto(x)).toList();
         return ResponseEntity.ok().body(
-            ResponseNotification.builder()
-                .timestamp(Instant.now())
-                .title(Translator.getTranslatedText(CodeMessages.SUCCESS))
-                .detail(Translator.getTranslatedText(CodeMessages.SUCCESS_OPERATION))
-                .messages(service.getMessages())
-                .status(HttpStatus.CREATED.value())
-                .data(resultList)
-            .build()     
-        );
+                ResponseNotification.builder()
+                        .timestamp(Instant.now())
+                        .title(Translator.getTranslatedText(CodeMessages.SUCCESS))
+                        .detail(Translator.getTranslatedText(CodeMessages.SUCCESS_OPERATION))
+                        .messages(service.getMessages())
+                        .status(HttpStatus.CREATED.value())
+                        .data(resultList)
+                        .build());
     }
 
     @JsonView(ResponseView.patch.class)
     @PatchMapping(value = "/{id}")
-    public ResponseEntity<ResponseNotification> patch(@PathVariable UUID id, @RequestBody Map<String, Object> dto, HttpServletRequest request) {
+    public ResponseEntity<ResponseNotification> patch(@PathVariable UUID id, @RequestBody Map<String, Object> dto,
+            HttpServletRequest request) {
         var objSaved = service.findById(id);
         if (objSaved != null) {
             try {
                 ObjectMapper objectMapper = new ObjectMapper();
                 objectMapper.registerModule(new JavaTimeModule());
                 objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-    
+
                 var newObj = objectMapper.convertValue(dto, objSaved.getClass());
                 var finalNewDto = newObj;
                 dto.forEach((nameProp, valueProp) -> {
@@ -178,17 +171,16 @@ public abstract class GenericCRUDController<DTO extends GenericDTO> {
                 newObj = service.update(id, objSaved);
                 URI uri = ServletUriComponentsBuilder.fromCurrentRequest().build().toUri();
                 return ResponseEntity.ok().body(
-                    ResponseNotification.builder()
-                        .timestamp(Instant.now())
-                        .title(Translator.getTranslatedText(CodeMessages.SUCCESS))
-                        .detail(Translator.getTranslatedText(CodeMessages.SUCCESS_OPERATION))
-                        .messages(service.getMessages())
-                        .path(uri.toString())
-                        .status(HttpStatus.CREATED.value())
-                        .data(converter.toDto(finalNewDto))
-                    .build()     
-                );
-            
+                        ResponseNotification.builder()
+                                .timestamp(Instant.now())
+                                .title(Translator.getTranslatedText(CodeMessages.SUCCESS))
+                                .detail(Translator.getTranslatedText(CodeMessages.SUCCESS_OPERATION))
+                                .messages(service.getMessages())
+                                .path(uri.toString())
+                                .status(HttpStatus.CREATED.value())
+                                .data(converter.toDto(finalNewDto))
+                                .build());
+
             } catch (IllegalArgumentException ex) {
                 throw new HttpMessageNotReadableException("Error on parse", new ServletServerHttpRequest(request));
             }
@@ -198,7 +190,8 @@ public abstract class GenericCRUDController<DTO extends GenericDTO> {
 
     @JsonView(ResponseView.patch.class)
     @PatchMapping(value = "/list")
-    public ResponseEntity<ResponseNotification> patchMultiple(@RequestBody List<Map<String, Object>> dtoList, HttpServletRequest request) {
+    public ResponseEntity<ResponseNotification> patchMultiple(@RequestBody List<Map<String, Object>> dtoList,
+            HttpServletRequest request) {
         List<Object> updatedObjects = new ArrayList<>();
 
         try {
@@ -209,17 +202,16 @@ public abstract class GenericCRUDController<DTO extends GenericDTO> {
             for (Map<String, Object> dto : dtoList) {
                 if (!dto.containsKey("id")) {
                     return ResponseEntity.badRequest().body(
-                        ResponseNotification.builder()
-                            .timestamp(Instant.now())
-                            .title(Translator.getTranslatedText("NO_ID_IN_REQUEST_BODY"))
-                            .detail("Missing 'id' in request body")
-                            .status(HttpStatus.BAD_REQUEST.value())
-                            .path(request.getRequestURI())
-                            .build()
-                    );
+                            ResponseNotification.builder()
+                                    .timestamp(Instant.now())
+                                    .title(Translator.getTranslatedText("NO_ID_IN_REQUEST_BODY"))
+                                    .detail("Missing 'id' in request body")
+                                    .status(HttpStatus.BAD_REQUEST.value())
+                                    .path(request.getRequestURI())
+                                    .build());
                 }
 
-                UUID id = UUID.fromString(dto.get("id").toString()); 
+                UUID id = UUID.fromString(dto.get("id").toString());
                 var entity = service.findById(id);
 
                 if (entity != null) {
@@ -241,16 +233,15 @@ public abstract class GenericCRUDController<DTO extends GenericDTO> {
 
             URI uri = ServletUriComponentsBuilder.fromCurrentRequest().build().toUri();
             return ResponseEntity.ok().body(
-                ResponseNotification.builder()
-                    .timestamp(Instant.now())
-                    .title(Translator.getTranslatedText(CodeMessages.SUCCESS))
-                    .detail(Translator.getTranslatedText(CodeMessages.SUCCESS_OPERATION))
-                    .messages(service.getMessages())
-                    .path(uri.toString())
-                    .status(HttpStatus.CREATED.value())
-                    .data(updatedObjects)
-                    .build()
-            );
+                    ResponseNotification.builder()
+                            .timestamp(Instant.now())
+                            .title(Translator.getTranslatedText(CodeMessages.SUCCESS))
+                            .detail(Translator.getTranslatedText(CodeMessages.SUCCESS_OPERATION))
+                            .messages(service.getMessages())
+                            .path(uri.toString())
+                            .status(HttpStatus.CREATED.value())
+                            .data(updatedObjects)
+                            .build());
 
         } catch (IllegalArgumentException ex) {
             throw new HttpMessageNotReadableException("Error on parse", new ServletServerHttpRequest(request));
@@ -262,61 +253,57 @@ public abstract class GenericCRUDController<DTO extends GenericDTO> {
     public ResponseEntity<ResponseNotification> delete(@PathVariable UUID id) {
         service.delete(id);
         return ResponseEntity.ok().body(
-            ResponseNotification.builder()
-                .timestamp(Instant.now())
-                .title(Translator.getTranslatedText(CodeMessages.SUCCESS))
-                .detail(Translator.getTranslatedText(CodeMessages.SUCCESS_OPERATION))
-                .messages(service.getMessages())
-                .status(HttpStatus.OK.value())            
-            .build()
-        );    
+                ResponseNotification.builder()
+                        .timestamp(Instant.now())
+                        .title(Translator.getTranslatedText(CodeMessages.SUCCESS))
+                        .detail(Translator.getTranslatedText(CodeMessages.SUCCESS_OPERATION))
+                        .messages(service.getMessages())
+                        .status(HttpStatus.OK.value())
+                        .build());
     }
 
-    @SuppressWarnings("unchecked")
-	@PostMapping(value = "/import")
-	public ResponseEntity<ResponseNotification> importList(@RequestBody RequestImportDTO<DTO> requestImport) {
+    @PostMapping(value = "/import")
+    public ResponseEntity<ResponseNotification> importList(@RequestBody RequestImportDTO<DTO> requestImport) {
         var entities = requestImport.getData().stream().map(converter::toEntity).toList();
-        var listResult = service.importList(entities, requestImport.getOperation(), requestImport.getKeys());
+        var listResult = service.importList(entities, requestImport);
         return ResponseEntity.ok().body(
-            ResponseNotification.builder()
-                .timestamp(Instant.now())
-                .title(Translator.getTranslatedText(CodeMessages.SUCCESS))
-                .detail(Translator.getTranslatedText(CodeMessages.SUCCESS_OPERATION))
-                .data(listResult)
-                .messages(service.getMessages())
-            .build()
-        );
-	}
+                ResponseNotification.builder()
+                        .timestamp(Instant.now())
+                        .title(Translator.getTranslatedText(CodeMessages.SUCCESS))
+                        .detail(Translator.getTranslatedText(CodeMessages.SUCCESS_OPERATION))
+                        .data(listResult)
+                        .messages(service.getMessages())
+                        .build());
+    }
 
     protected <T> ResponseEntity<ResponseNotification> executeOperation(Supplier<T> operation) {
         try {
             T result = operation.get();
             URI uri = ServletUriComponentsBuilder.fromCurrentRequest().build().toUri();
-    
+
             ResponseNotification response = ResponseNotification.builder()
-                .timestamp(Instant.now())
-                .title(Translator.getTranslatedText(CodeMessages.SUCCESS))
-                .detail(Translator.getTranslatedText(CodeMessages.SUCCESS_OPERATION))
-                .messages(service.getMessages())
-                .path(uri.toString())
-                .status(HttpStatus.ACCEPTED.value())
-                .data(converter.toDto(result))
-                .build();
-    
+                    .timestamp(Instant.now())
+                    .title(Translator.getTranslatedText(CodeMessages.SUCCESS))
+                    .detail(Translator.getTranslatedText(CodeMessages.SUCCESS_OPERATION))
+                    .messages(service.getMessages())
+                    .path(uri.toString())
+                    .status(HttpStatus.ACCEPTED.value())
+                    .data(converter.toDto(result))
+                    .build();
+
             return ResponseEntity.ok().body(response);
-    
+
         } catch (Exception ex) {
             // Tratamento genérico de erro
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-                ResponseNotification.builder()
-                    .timestamp(Instant.now())
-                    .title(Translator.getTranslatedText(CodeMessages.ERROR))
-                    .detail(ex.getMessage())
-                    .messages(service.getMessages())
-                    .path(ServletUriComponentsBuilder.fromCurrentRequest().build().toUri().toString())
-                    .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
-                    .build()
-            );
+                    ResponseNotification.builder()
+                            .timestamp(Instant.now())
+                            .title(Translator.getTranslatedText(CodeMessages.ERROR))
+                            .detail(ex.getMessage())
+                            .messages(service.getMessages())
+                            .path(ServletUriComponentsBuilder.fromCurrentRequest().build().toUri().toString())
+                            .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                            .build());
         }
     }
 }

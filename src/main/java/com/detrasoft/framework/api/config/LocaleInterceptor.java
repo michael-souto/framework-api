@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.util.Locale;
 
 @Component
+@SuppressWarnings("null")
 public class LocaleInterceptor implements HandlerInterceptor {
 
     @Override

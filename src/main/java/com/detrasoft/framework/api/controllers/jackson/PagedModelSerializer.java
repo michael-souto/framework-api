@@ -8,6 +8,7 @@ import org.springframework.hateoas.PagedModel;
 
 import java.io.IOException;
 
+@SuppressWarnings("null")
 @JsonComponent
 public class PagedModelSerializer extends JsonSerializer<PagedModel<?>> {
 

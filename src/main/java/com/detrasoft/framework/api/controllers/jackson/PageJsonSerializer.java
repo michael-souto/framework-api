@@ -8,6 +8,7 @@ import org.springframework.data.domain.Page;
 
 import java.io.IOException;
 
+@SuppressWarnings("rawtypes")
 @JsonComponent
 public class PageJsonSerializer extends JsonSerializer<Page<?>> {
 

@@ -9,11 +9,10 @@ import org.springframework.hateoas.server.mvc.RepresentationModelAssemblerSuppor
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.ParameterizedType;
-import java.net.URI;
 
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
-import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 
+@SuppressWarnings({"rawtypes", "unchecked", "null"})
 public class GenericRepresentationModelDTOAssembler<Entity, DTO extends GenericRepresentationModelDTO<? extends DTO>>
         extends RepresentationModelAssemblerSupport<Entity, DTO>
         implements RepresentationModelAssembler<Entity, DTO> {

@@ -7,6 +7,7 @@ import org.springframework.beans.BeanUtils;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.ParameterizedType;
 
+@SuppressWarnings({"rawtypes", "unchecked"})
 public class GenericEntityDTOConverter<Entity extends GenericEntity, DTO extends GenericDTO> {
 
     public Entity toEntity(DTO dto) {

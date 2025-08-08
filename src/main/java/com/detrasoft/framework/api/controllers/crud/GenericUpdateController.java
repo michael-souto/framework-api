@@ -20,6 +20,7 @@ import java.net.URI;
 import java.time.Instant;
 import java.util.UUID;
 
+@SuppressWarnings({"rawtypes", "unchecked"})
 public class GenericUpdateController<DTO extends GenericDTO> {
 
     protected GenericUpdateService service;

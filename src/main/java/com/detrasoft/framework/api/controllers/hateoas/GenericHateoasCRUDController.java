@@ -31,6 +31,7 @@ import java.util.Objects;
 import java.lang.reflect.ParameterizedType;
 import java.util.UUID;
 
+@SuppressWarnings({"rawtypes", "unchecked"})
 public class GenericHateoasCRUDController<DTO extends GenericRepresentationModelDTO<? extends DTO>> {
 
     protected GenericCRUDService service;
@@ -52,7 +53,7 @@ public class GenericHateoasCRUDController<DTO extends GenericRepresentationModel
         var paged = new PageImpl<DTO>(
                 list.getContent().stream()
                         .map(obj -> assembler.toModel(obj, true)).toList(), pageable, list.getTotalElements());
-        return ResponseEntity.ok().body(pagedAssembler.toModel((Page) list, (RepresentationModelAssembler) assembler));
+        return ResponseEntity.ok().body(pagedAssembler.toModel(paged, (RepresentationModelAssembler) assembler));
     }
     protected Page<? extends GenericEntity> getAllPaged(Pageable pageable) {
         return service.findAllPaged(pageable);
@@ -117,7 +118,6 @@ public class GenericHateoasCRUDController<DTO extends GenericRepresentationModel
         return ResponseEntity.noContent().build();
     }
 
-    @SuppressWarnings("unchecked")
     private Class<?> getGenericClass() {
         ParameterizedType type = (ParameterizedType) getClass().getGenericSuperclass();
         return ((Class<DTO>) (type).getActualTypeArguments()[0]);
