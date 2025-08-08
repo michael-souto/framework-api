@@ -182,7 +182,7 @@ public abstract class GenericCRUDController<DTO extends GenericDTO> {
                                 .messages(service.getMessages())
                                 .path(uri.toString())
                                 .status(HttpStatus.CREATED.value())
-                                .data(converter.toDto(finalNewDto))
+                                .data(converter.toDto(newObj))
                                 .build());
 
             } catch (IllegalArgumentException ex) {
