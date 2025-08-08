@@ -11,6 +11,9 @@ import com.detrasoft.framework.crud.services.crud.GenericCRUDService;
 import com.detrasoft.framework.enums.CodeMessages;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -32,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 @SuppressWarnings({ "rawtypes", "unchecked" })
 public abstract class GenericCRUDController<DTO extends GenericDTO> {

@@ -1,6 +1,8 @@
 package com.detrasoft.framework.api.controllers.exceptions;
 
+import com.detrasoft.framework.core.notification.Message;
 import com.detrasoft.framework.crud.services.exceptions.DatabaseException;
+import com.detrasoft.framework.crud.services.exceptions.EntityValidationException;
 import com.detrasoft.framework.crud.services.exceptions.ResourceNotFoundException;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import org.springframework.beans.factory.annotation.Autowired;
