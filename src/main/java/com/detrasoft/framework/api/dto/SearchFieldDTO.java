@@ -15,6 +15,7 @@ import lombok.Setter;
 public class SearchFieldDTO {
 	private String label;
 	private String field;
+	private boolean hidden;
 	private FieldType type;
 
     public static SearchFieldDTO fromEntity(SearchField searchField) {
@@ -24,6 +25,7 @@ public class SearchFieldDTO {
 		return new SearchFieldDTO(
 				searchField.getLabel(),
 				searchField.getField(),
+				searchField.isHidden(),
 				searchField.getType()
 		);
 	}

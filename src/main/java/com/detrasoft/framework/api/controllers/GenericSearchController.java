@@ -307,6 +307,7 @@ public class GenericSearchController {
 			columnsDTO.add(new SearchFieldDTO(
 				Translator.getTranslatedText(column.getLabel()),
 				column.getField(),
+				column.isHidden(),
 				column.getType()
 		));
 		}
