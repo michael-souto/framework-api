@@ -3,6 +3,7 @@ package com.detrasoft.framework.api.controllers;
 import com.detrasoft.framework.api.controllers.jackson.ResponseView;
 import com.detrasoft.framework.api.dto.GenericDTO;
 import com.detrasoft.framework.api.dto.converters.GenericEntityDTOConverter;
+import com.detrasoft.framework.api.utils.GenericSpecs;
 import com.detrasoft.framework.core.notification.ResponseNotification;
 import com.detrasoft.framework.core.resource.Translator;
 import com.detrasoft.framework.crud.dtos.RequestImportDTO;
@@ -62,6 +63,18 @@ public abstract class GenericCRUDController<DTO extends GenericDTO> {
 
     protected Page<? extends GenericEntity> getAllPaged(Pageable pageable) {
         return service.findAllPaged(pageable);
+    }
+
+    @GetMapping(value = "/by-list-ids", params = "ids")
+    public ResponseEntity<List<DTO>> getFindAllByArrayIds(@RequestParam List<String> ids) {
+        var entities = service.findAll(GenericSpecs.byIds(ids.stream().map(UUID::fromString).toList()));
+        return ResponseEntity.ok().body(entities.stream().map(converter::toDto).toList());
+    }
+
+    @PostMapping(value = "/by-list-ids")
+    public ResponseEntity<List<DTO>> postFindAllByArrayIds(@RequestBody List<String> ids) {
+        var entities = service.findAll(GenericSpecs.byIds(ids.stream().map(UUID::fromString).toList()));
+        return ResponseEntity.ok().body(entities.stream().map(converter::toDto).toList());
     }
 
     @JsonView(ResponseView.findById.class)
