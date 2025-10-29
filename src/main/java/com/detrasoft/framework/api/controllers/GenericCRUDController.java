@@ -283,12 +283,13 @@ public abstract class GenericCRUDController<DTO extends GenericDTO> {
     public ResponseEntity<ResponseNotification> importList(@RequestBody RequestImportDTO<DTO> requestImport) {
         var entities = requestImport.getData().stream().map(converter::toEntity).toList();
         var listResult = service.importList(entities, requestImport);
+        List<DTO> resultList = listResult.stream().map(converter::toDto).toList();
         return ResponseEntity.ok().body(
                 ResponseNotification.builder()
                         .timestamp(Instant.now())
                         .title(Translator.getTranslatedText(CodeMessages.SUCCESS))
                         .detail(Translator.getTranslatedText(CodeMessages.SUCCESS_OPERATION))
-                        .data(listResult)
+                        .data(resultList)
                         .messages(service.getMessages())
                         .build());
     }
