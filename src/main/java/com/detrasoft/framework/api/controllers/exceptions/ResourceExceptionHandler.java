@@ -11,6 +11,7 @@ import org.springframework.context.NoSuchMessageException;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.mapping.PropertyReferenceException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
@@ -28,6 +29,8 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
 
 @SuppressWarnings("null")
 @ControllerAdvice
@@ -153,14 +156,35 @@ public class ResourceExceptionHandler {
 	}
 
 	@ExceptionHandler(HttpMediaTypeNotSupportedException.class)
-	public ResponseEntity<StandardError> contentType(HttpMediaTypeNotSupportedException e, HttpServletRequest request) {
-		HttpStatus status = HttpStatus.UNSUPPORTED_MEDIA_TYPE;
-		return ResponseEntity.status(status).body(createStandardError(
-				status,
-				"Content type not supported",
-				String.format("'%s' media type is not supported", e.getContentType().getSubtype().toString().toUpperCase()),
-				request.getRequestURI()));
-	}
+    public ResponseEntity<Map<String, Object>> contentType(
+            HttpMediaTypeNotSupportedException e) {
+        
+        Map<String, Object> error = new HashMap<>();
+        error.put("timestamp", Instant.now().toString());
+        error.put("status", HttpStatus.UNSUPPORTED_MEDIA_TYPE.value());
+        error.put("error", "Unsupported Media Type");
+        
+        var contentType = e.getContentType();
+        if (contentType != null) {
+            error.put("message", String.format(
+                "Tipo de conteúdo '%s' não é suportado. Tipos suportados: %s",
+                contentType.getSubtype(),
+                e.getSupportedMediaTypes()
+            ));
+        } else {
+            error.put("message", String.format(
+                "Tipo de conteúdo não especificado ou inválido. Tipos suportados: %s",
+                e.getSupportedMediaTypes()
+            ));
+        }
+        
+        error.put("supportedMediaTypes", e.getSupportedMediaTypes());
+        
+        return ResponseEntity
+            .status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(error);
+    }
 
 	@ExceptionHandler(HttpRequestMethodNotSupportedException.class)
 	public ResponseEntity<StandardError> methodNotSupported(HttpRequestMethodNotSupportedException e, HttpServletRequest request) {
