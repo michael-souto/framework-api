@@ -137,7 +137,7 @@ public class ResourceExceptionHandler {
 	}
 
 	@ExceptionHandler(EntityValidationException.class)
-	public ResponseEntity<StandardError> database(EntityValidationException e, HttpServletRequest request) {
+	public ResponseEntity<StandardError> entityValidation(EntityValidationException e, HttpServletRequest request) {
 		HttpStatus status = HttpStatus.BAD_REQUEST;
 
 		ValidationError err = ValidationError.standardBuilder()
@@ -151,6 +151,20 @@ public class ResourceExceptionHandler {
 		for (Message message : e.getMessages()) {
 			err.addError(message.getTarget(), message.getDescription());
 		}
+
+		return ResponseEntity.status(status).body(err);
+	}
+
+	@ExceptionHandler(GenericValidationException.class)
+	public ResponseEntity<StandardError> genericValidation(GenericValidationException e, HttpServletRequest request) {
+		HttpStatus status = HttpStatus.BAD_REQUEST;
+		ValidationError err = ValidationError.standardBuilder()
+				.timestamp(Instant.now())
+				.status(status.value())
+				.title("Validation exception")
+				.detail(e.getMessage())
+				.path(request.getRequestURI())
+				.build();
 
 		return ResponseEntity.status(status).body(err);
 	}
