@@ -162,7 +162,7 @@ public class GenericSearchController {
 		String query = getSQLNativeCommand(searchFields, columns, from, where, groupBy, orderBy);
 		query = query.replace(":user_id", GenericContext.getContexts("userId"));
 		query = query.replace(":detrasoft_id", GenericContext.getContexts("detrasoftId"));
-
+		query = query.replace(":timezone_offset", GenericContext.getContexts("timezoneOffset"));
 
 		List<Object[]> resultSQL;
 		if (!unpaged) {
