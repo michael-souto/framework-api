@@ -163,6 +163,8 @@ public class GenericSearchController {
 		query = query.replace(":user_id", GenericContext.getContexts("userId"));
 		query = query.replace(":detrasoft_id", GenericContext.getContexts("detrasoftId"));
 		query = query.replace(":timezone_offset", GenericContext.getContexts("timezoneOffset"));
+		query = query.replace(":current_datetime", LocalDateTime.now(ZoneOffset.of(GenericContext.getContexts("timezoneOffset"))).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+		query = query.replace(":current_date", LocalDate.now(ZoneOffset.of(GenericContext.getContexts("timezoneOffset"))).format(DateTimeFormatter.ISO_LOCAL_DATE));
 
 		List<Object[]> resultSQL;
 		if (!unpaged) {
