@@ -3,13 +3,11 @@ package com.detrasoft.framework.api.controllers.jackson;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.SerializerProvider;
-import org.springframework.boot.jackson.JsonComponent;
+import org.springframework.boot.jackson.JacksonComponent;
 import org.springframework.hateoas.PagedModel;
 
 import java.io.IOException;
-
-@SuppressWarnings("null")
-@JsonComponent
+@JacksonComponent
 public class PagedModelSerializer extends JsonSerializer<PagedModel<?>> {
 
     @Override
