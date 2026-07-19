@@ -44,7 +44,7 @@ public class GenericSearchController {
 
 	private List<SearchConfiguration> searchConfigurations = new ArrayList<>();
 
-	public GenericSearchController () throws IOException {
+	public GenericSearchController() throws IOException {
 		loadAllSearchConfigurations();
 	}
 
@@ -83,7 +83,7 @@ public class GenericSearchController {
 		if (config == null) {
 			return ResponseEntity.notFound().build();
 		}
-		//Declarando as variáveis
+
 		List<Map<String, Object>> resultList = new ArrayList<>();
 		List<SearchField> columns = config.getColumns();
 		String title = Translator.getTranslatedText(config.getTitle());
@@ -95,12 +95,16 @@ public class GenericSearchController {
 		SearchReponseDTO response = new SearchReponseDTO();
 		resultList = new ArrayList<>();
 
-
+		String anyValue = queryParams.get("any");
 
 		// Converte os query parameters em uma lista de SearchFields
 		List<SearchField> searchFields = new ArrayList<>();
 		Map<String, String> customSearchFields = new HashMap<>();
 		queryParams.forEach((key, value) -> {
+			if ("page".equals(key) || "size".equals(key) || "sort".equals(key) || "unpaged".equals(key)
+					|| "any".equals(key)) {
+				return;
+			}
 			// Procura a coluna correspondente na configuração
 			Optional<SearchField> matchingColumn = columns.stream()
 					.filter(column -> column.getField().equalsIgnoreCase(key))
@@ -111,6 +115,10 @@ public class GenericSearchController {
 				searchField.setValue(value);
 				searchField.setType(matchingColumn.get().getType());
 				searchField.setColumnName(matchingColumn.get().getColumnName());
+				searchField.setWhere(matchingColumn.get().getWhere());
+				searchField.setPrincipal(matchingColumn.get().isPrincipal());
+				searchField.setKey(matchingColumn.get().isKey());
+				searchField.setHidden(matchingColumn.get().isHidden());
 				searchFields.add(searchField);
 			} else {
 				customSearchFields.put(key, value);
@@ -122,7 +130,7 @@ public class GenericSearchController {
 				String key         = entry.getKey();
 				String rawValue    = entry.getValue();
 				String placeholder = ":" + key;
-		
+			
 				// inteiro
 				if (rawValue.matches("^-?\\d+$")) {
 					where = where.replace(placeholder, rawValue);
@@ -139,18 +147,13 @@ public class GenericSearchController {
 				else if (rawValue.matches("^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}:\\d{2})?$")) {
 					String formatted;
 					if (rawValue.contains("T")) {
-						// parseia "2025-05-19T19:47:07"
 						LocalDateTime ldt = LocalDateTime.parse(rawValue, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-						// anexa a zona do servidor (ou use ZoneId.of("America/Sao_Paulo") se preferir fixa)
 						ZonedDateTime zdt = ldt.atZone(ZoneOffset.UTC);
-						// formata algo como "2025-05-19T19:47:07-03:00"
 						formatted = zdt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
 					} else {
-						// parseia só "2025-05-19"
 						LocalDate d = LocalDate.parse(rawValue, DateTimeFormatter.ISO_LOCAL_DATE);
 						formatted = d.format(DateTimeFormatter.ISO_LOCAL_DATE);
 					}
-					// substitui com aspas para SQL
 					where = where.replace(placeholder, formatted);
 				}
 				// tudo o mais cai aqui como string
@@ -159,17 +162,13 @@ public class GenericSearchController {
 				}
 			}
 		}
-		String query = getSQLNativeCommand(searchFields, columns, from, where, groupBy, orderBy);
-		query = query.replace(":user_id", GenericContext.getContexts("userId"));
-		query = query.replace(":detrasoft_id", GenericContext.getContexts("detrasoftId"));
-		query = query.replace(":timezone_offset", GenericContext.getContexts("timezoneOffset"));
-		query = query.replace(":current_datetime", LocalDateTime.now(ZoneOffset.of(GenericContext.getContexts("timezoneOffset"))).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-		query = query.replace(":current_date", LocalDate.now(ZoneOffset.of(GenericContext.getContexts("timezoneOffset"))).format(DateTimeFormatter.ISO_LOCAL_DATE));
+
+		String query = getSQLNativeCommand(searchFields, columns, from, where, groupBy, orderBy, anyValue);
+		query = applyContextPlaceholders(query);
 
 		List<Object[]> resultSQL;
 		if (!unpaged) {
 			resultSQL = searchRepository.findNativeSQL(query, pageable);
-
 		} else {
 			resultSQL = searchRepository.findNativeSQL(query);
 		}
@@ -193,7 +192,16 @@ public class GenericSearchController {
 		return ResponseEntity.ok(response);
 	}
 
-	private String getSQLNativeCommand(List<SearchField> searchFields, List<SearchField> columns, String from, String where, String groupBy, String orderBy) {
+	private String applyContextPlaceholders(String query) {
+		query = query.replace(":user_id", GenericContext.getContexts("userId"));
+		query = query.replace(":detrasoft_id", GenericContext.getContexts("detrasoftId"));
+		query = query.replace(":timezone_offset", GenericContext.getContexts("timezoneOffset"));
+		query = query.replace(":current_datetime", LocalDateTime.now(ZoneOffset.of(GenericContext.getContexts("timezoneOffset"))).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+		query = query.replace(":current_date", LocalDate.now(ZoneOffset.of(GenericContext.getContexts("timezoneOffset"))).format(DateTimeFormatter.ISO_LOCAL_DATE));
+		return query;
+	}
+
+	private String getSQLNativeCommand(List<SearchField> searchFields, List<SearchField> columns, String from, String where, String groupBy, String orderBy, String anyValue) {
 		String selectSQL = "SELECT ";
 		for (int i = 0; i < columns.size(); i++) {
 			selectSQL = selectSQL + columns.get(i).getColumnName() + " AS C" + i + " ";
@@ -280,6 +288,12 @@ public class GenericSearchController {
 
 			}
 		}
+
+		String anyClause = buildAnyClause(columns, anyValue);
+		if (!anyClause.isEmpty()) {
+			whereSQL = whereSQL + "(" + anyClause + ") AND ";
+		}
+
 		if (whereSQL.length() > 5 && whereSQL.substring(whereSQL.length() - 5, whereSQL.length()).equals(" AND ")) {
 			whereSQL = whereSQL.substring(0, whereSQL.length() - 5);
 		}
@@ -290,6 +304,21 @@ public class GenericSearchController {
 		String orderBySQL = orderBy != null ? " ORDER BY " + orderBy : "";
 
 		return selectSQL + fromSQL + whereSQL + groupBySQL + orderBySQL;
+	}
+
+	private String buildAnyClause(List<SearchField> columns, String anyValue) {
+		if (anyValue == null || anyValue.isEmpty()) {
+			return "";
+		}
+		String value = anyValue.replace(" ", "%");
+		List<String> conditions = new ArrayList<>();
+		for (SearchField column : columns) {
+			if (FieldType.string.equals(column.getType()) && !column.isHidden()
+					&& column.getColumnName() != null && !column.getColumnName().isEmpty()) {
+				conditions.add("CAST(" + column.getColumnName() + " AS TEXT) ILIKE ('%" + value + "%')");
+			}
+		}
+		return String.join(" OR ", conditions);
 	}
 
 	private void loadAllSearchConfigurations() throws IOException {
@@ -310,8 +339,10 @@ public class GenericSearchController {
 				Translator.getTranslatedText(column.getLabel()),
 				column.getField(),
 				column.isHidden(),
+				column.isPrincipal(),
+				column.isKey(),
 				column.getType()
-		));
+			));
 		}
 		return columnsDTO;
 	}

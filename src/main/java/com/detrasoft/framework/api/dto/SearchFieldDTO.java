@@ -16,6 +16,8 @@ public class SearchFieldDTO {
 	private String label;
 	private String field;
 	private boolean hidden;
+	private boolean principal;
+	private boolean key;
 	private FieldType type;
 
     public static SearchFieldDTO fromEntity(SearchField searchField) {
@@ -26,7 +28,8 @@ public class SearchFieldDTO {
 				searchField.getLabel(),
 				searchField.getField(),
 				searchField.isHidden(),
-				searchField.getType()
-		);
+				searchField.isPrincipal(),
+				searchField.isKey(),
+				searchField.getType());
 	}
 }
