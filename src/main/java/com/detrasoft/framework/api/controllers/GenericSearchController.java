@@ -76,7 +76,8 @@ public class GenericSearchController {
 	}
 
 	@GetMapping(value = "/{id}")
-	public ResponseEntity<SearchReponseDTO> search(@PathVariable String id, @RequestParam Map<String, String> queryParams,
+	public ResponseEntity<SearchReponseDTO> search(@PathVariable String id,
+			@RequestParam Map<String, String> queryParams,
 			@RequestParam(name = "unpaged", required = false) boolean unpaged, Pageable pageable) {
 
 		SearchConfiguration config = getSearchConfigurationById(id);
@@ -124,13 +125,16 @@ public class GenericSearchController {
 				customSearchFields.put(key, value);
 			}
 		});
-	
+
 		if (customSearchFields.size() > 0 && where != null) {
 			for (Map.Entry<String, String> entry : customSearchFields.entrySet()) {
-				String key         = entry.getKey();
-				String rawValue    = entry.getValue();
+				String key = entry.getKey();
+				String rawValue = entry.getValue();
+				if (rawValue == null) {
+					continue;
+				}
 				String placeholder = ":" + key;
-			
+
 				// inteiro
 				if (rawValue.matches("^-?\\d+$")) {
 					where = where.replace(placeholder, rawValue);
@@ -193,15 +197,40 @@ public class GenericSearchController {
 	}
 
 	private String applyContextPlaceholders(String query) {
-		query = query.replace(":user_id", GenericContext.getContexts("userId"));
-		query = query.replace(":detrasoft_id", GenericContext.getContexts("detrasoftId"));
-		query = query.replace(":timezone_offset", GenericContext.getContexts("timezoneOffset"));
-		query = query.replace(":current_datetime", LocalDateTime.now(ZoneOffset.of(GenericContext.getContexts("timezoneOffset"))).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-		query = query.replace(":current_date", LocalDate.now(ZoneOffset.of(GenericContext.getContexts("timezoneOffset"))).format(DateTimeFormatter.ISO_LOCAL_DATE));
+		if (query == null) {
+			return null;
+		}
+
+		String userId = GenericContext.getContexts("userId");
+		query = query.replace(":user_id", userId != null ? userId : "");
+
+		String detrasoftId = GenericContext.getContexts("detrasoftId");
+		query = query.replace(":detrasoft_id", detrasoftId != null ? detrasoftId : "");
+
+		String timezoneOffset = GenericContext.getContexts("timezoneOffset");
+		ZoneOffset zoneOffset;
+		if (timezoneOffset != null && !timezoneOffset.trim().isEmpty()) {
+			try {
+				zoneOffset = ZoneOffset.of(timezoneOffset.trim());
+			} catch (Exception e) {
+				zoneOffset = ZoneOffset.UTC;
+				timezoneOffset = "+00:00";
+			}
+		} else {
+			zoneOffset = ZoneOffset.UTC;
+			timezoneOffset = "+00:00";
+		}
+
+		query = query.replace(":timezone_offset", timezoneOffset);
+		query = query.replace(":current_datetime",
+				LocalDateTime.now(zoneOffset).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+		query = query.replace(":current_date", LocalDate.now(zoneOffset).format(DateTimeFormatter.ISO_LOCAL_DATE));
+
 		return query;
 	}
 
-	private String getSQLNativeCommand(List<SearchField> searchFields, List<SearchField> columns, String from, String where, String groupBy, String orderBy, String anyValue) {
+	private String getSQLNativeCommand(List<SearchField> searchFields, List<SearchField> columns, String from,
+			String where, String groupBy, String orderBy, String anyValue) {
 		String selectSQL = "SELECT ";
 		for (int i = 0; i < columns.size(); i++) {
 			selectSQL = selectSQL + columns.get(i).getColumnName() + " AS C" + i + " ";
@@ -240,11 +269,10 @@ public class GenericSearchController {
 					valueList.removeIf(d -> d == null);
 					DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy");
 					if (valueList.size() == 2) {
-						whereSQL = whereSQL + 
-						"date_trunc('day'," + columnName + ")" 
-							+ " BETWEEN date_trunc('day', TIMESTAMP WITH TIME ZONE '" + valueList.get(0) 
-							+ "') AND date_trunc('day', TIMESTAMP WITH TIME ZONE '" + valueList.get(1) + "')";
-
+						whereSQL = whereSQL +
+								"date_trunc('day'," + columnName + ")"
+								+ " BETWEEN date_trunc('day', TIMESTAMP WITH TIME ZONE '" + valueList.get(0)
+								+ "') AND date_trunc('day', TIMESTAMP WITH TIME ZONE '" + valueList.get(1) + "')";
 
 					} else if (valueList.size() == 1) {
 						ZonedDateTime date = ZonedDateTime.parse(valueList.get(0), DateTimeFormatter.ISO_DATE_TIME);
@@ -254,13 +282,14 @@ public class GenericSearchController {
 				} // RANGE of DATETIME
 				else if (searchFields.get(i).getType().equals(FieldType.rangedatetime)) {
 					DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy");
-					
+
 					if (searchFields.get(i).getValue().toString().indexOf("-to-") > 0
 							&& searchFields.get(i).getValue().toString().split("-to-").length == 2) {
 						List<String> valueList = Arrays.asList(searchFields.get(i).getValue().toString().split("-to-"));
 						valueList.removeIf(d -> d == null);
-						whereSQL = whereSQL + " ( " + columnName + " ) BETWEEN '" + valueList.get(0) + "'::timestamptz AND '" + valueList.get(1) + "'::timestamptz ";
-						
+						whereSQL = whereSQL + " ( " + columnName + " ) BETWEEN '" + valueList.get(0)
+								+ "'::timestamptz AND '" + valueList.get(1) + "'::timestamptz ";
+
 					} else {
 						List<String> valueList = Arrays.asList(searchFields.get(i).getValue().toString().split(","));
 						valueList.removeIf(d -> d == null);
@@ -271,16 +300,14 @@ public class GenericSearchController {
 						}
 					}
 				}
-				// CURRENCY 
+				// CURRENCY
 				else if (searchFields.get(i).getType().equals(FieldType.currency)) {
 					String value = searchFields.get(i).getValue().toString().replace(" ", "%");
 					whereSQL = whereSQL + columnName + " = " + value.replace(',', '.');
 
-				} 
-				else if (searchFields.get(i).getType().equals(FieldType.guid)) {
+				} else if (searchFields.get(i).getType().equals(FieldType.guid)) {
 					whereSQL = whereSQL + columnName + " = '" + searchFields.get(i).getValue().toString() + "'";
-				}
-				else {
+				} else {
 					whereSQL = whereSQL + columnName + " = " + searchFields.get(i).getValue().toString();
 				}
 
@@ -322,27 +349,26 @@ public class GenericSearchController {
 	}
 
 	private void loadAllSearchConfigurations() throws IOException {
-        ObjectMapper mapper = new ObjectMapper();
-        Resource[] resources = new PathMatchingResourcePatternResolver().getResources("classpath:searches/*.json");
+		ObjectMapper mapper = new ObjectMapper();
+		Resource[] resources = new PathMatchingResourcePatternResolver().getResources("classpath:searches/*.json");
 
-        for (Resource resource : resources) {
-            InputStream is = resource.getInputStream();
-            SearchConfiguration config = mapper.readValue(is, SearchConfiguration.class);
-            searchConfigurations.add(config);
-        }
-    }
+		for (Resource resource : resources) {
+			InputStream is = resource.getInputStream();
+			SearchConfiguration config = mapper.readValue(is, SearchConfiguration.class);
+			searchConfigurations.add(config);
+		}
+	}
 
 	private List<SearchFieldDTO> convertColumnsToDTO(List<SearchField> columns) {
 		List<SearchFieldDTO> columnsDTO = new ArrayList<>();
 		for (SearchField column : columns) {
 			columnsDTO.add(new SearchFieldDTO(
-				Translator.getTranslatedText(column.getLabel()),
-				column.getField(),
-				column.isHidden(),
-				column.isPrincipal(),
-				column.isKey(),
-				column.getType()
-			));
+					Translator.getTranslatedText(column.getLabel()),
+					column.getField(),
+					column.isHidden(),
+					column.isPrincipal(),
+					column.isKey(),
+					column.getType()));
 		}
 		return columnsDTO;
 	}
