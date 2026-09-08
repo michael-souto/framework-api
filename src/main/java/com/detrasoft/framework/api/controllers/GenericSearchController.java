@@ -340,9 +340,13 @@ public class GenericSearchController {
 		String value = anyValue.replace(" ", "%");
 		List<String> conditions = new ArrayList<>();
 		for (SearchField column : columns) {
-			if (FieldType.string.equals(column.getType()) && !column.isHidden()
-					&& column.getColumnName() != null && !column.getColumnName().isEmpty()) {
-				conditions.add("CAST(" + column.getColumnName() + " AS TEXT) ILIKE ('%" + value + "%')");
+			if (FieldType.string.equals(column.getType()) && !column.isHidden()) {
+				String colExpr = (column.getWhere() != null && !column.getWhere().trim().isEmpty())
+						? column.getWhere()
+						: column.getColumnName();
+				if (colExpr != null && !colExpr.trim().isEmpty() && !colExpr.toUpperCase().contains("STRING_AGG")) {
+					conditions.add("CAST(" + colExpr + " AS TEXT) ILIKE ('%" + value + "%')");
+				}
 			}
 		}
 		return String.join(" OR ", conditions);
