@@ -204,6 +204,9 @@ public class GenericSearchController {
 		String userId = GenericContext.getContexts("userId");
 		query = query.replace(":user_id", userId != null ? userId : "");
 
+		String software = GenericContext.getContexts("software");
+		query = query.replace(":software", software != null ? software : "");
+
 		String detrasoftId = GenericContext.getContexts("detrasoftId");
 		query = query.replace(":detrasoft_id", detrasoftId != null ? detrasoftId : "");
 
@@ -340,13 +343,9 @@ public class GenericSearchController {
 		String value = anyValue.replace(" ", "%");
 		List<String> conditions = new ArrayList<>();
 		for (SearchField column : columns) {
-			if (FieldType.string.equals(column.getType()) && !column.isHidden()) {
-				String colExpr = (column.getWhere() != null && !column.getWhere().trim().isEmpty())
-						? column.getWhere()
-						: column.getColumnName();
-				if (colExpr != null && !colExpr.trim().isEmpty() && !colExpr.toUpperCase().contains("STRING_AGG")) {
-					conditions.add("CAST(" + colExpr + " AS TEXT) ILIKE ('%" + value + "%')");
-				}
+			if (FieldType.string.equals(column.getType()) && !column.isHidden()
+					&& column.getColumnName() != null && !column.getColumnName().isEmpty()) {
+				conditions.add("CAST(" + column.getColumnName() + " AS TEXT) ILIKE ('%" + value + "%')");
 			}
 		}
 		return String.join(" OR ", conditions);
