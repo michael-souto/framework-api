@@ -15,7 +15,7 @@ import com.detrasoft.framework.api.utils.CustomMessageInterpolator;
 
 import java.util.Locale;
 
-@Configuration
+@Configuration(proxyBeanMethods = false)
 @SuppressWarnings("null")
 public class MessageConfiguration implements WebMvcConfigurer {
     
@@ -57,7 +57,7 @@ public class MessageConfiguration implements WebMvcConfigurer {
     }
     
     @Bean
-    public CustomMessageInterpolator messageInterpolator(){
-        return new CustomMessageInterpolator(messageSource());
+    public CustomMessageInterpolator messageInterpolator(MessageSource messageSource){
+        return new CustomMessageInterpolator(messageSource);
     }
 }
