@@ -44,7 +44,7 @@ public class GenericSearchController {
 
 	private List<SearchConfiguration> searchConfigurations = new ArrayList<>();
 
-	public GenericSearchController() throws IOException {
+	public GenericSearchController() {
 		loadAllSearchConfigurations();
 	}
 
@@ -351,14 +351,44 @@ public class GenericSearchController {
 		return String.join(" OR ", conditions);
 	}
 
-	private void loadAllSearchConfigurations() throws IOException {
+	private void loadAllSearchConfigurations() {
 		ObjectMapper mapper = new ObjectMapper();
-		Resource[] resources = new PathMatchingResourcePatternResolver().getResources("classpath:searches/*.json");
+		List<Resource> resourceList = new ArrayList<>();
+		try {
+			Resource[] resources = new PathMatchingResourcePatternResolver().getResources("classpath:searches/*.json");
+			if (resources != null) {
+				for (Resource r : resources) {
+					if (r != null && r.exists()) {
+						resourceList.add(r);
+					}
+				}
+			}
+		} catch (Throwable e) {
+			// Fallback para GraalVM Native Image onde listing dinâmico de classpath não é suportado
+		}
 
-		for (Resource resource : resources) {
-			InputStream is = resource.getInputStream();
-			SearchConfiguration config = mapper.readValue(is, SearchConfiguration.class);
-			searchConfigurations.add(config);
+		if (resourceList.isEmpty()) {
+			String[] knownSearches = {"user.json", "profile.json", "role.json"};
+			for (String search : knownSearches) {
+				try {
+					Resource res = new org.springframework.core.io.ClassPathResource("searches/" + search);
+					if (res.exists()) {
+						resourceList.add(res);
+					}
+				} catch (Throwable ignored) {
+				}
+			}
+		}
+
+		for (Resource resource : resourceList) {
+			try (InputStream is = resource.getInputStream()) {
+				SearchConfiguration config = mapper.readValue(is, SearchConfiguration.class);
+				if (config != null) {
+					searchConfigurations.add(config);
+				}
+			} catch (Throwable e) {
+				// Ignora recurso com erro individual de parse
+			}
 		}
 	}
 

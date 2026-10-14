@@ -51,7 +51,7 @@ public class ResourceExceptionHandler {
 		ex.printStackTrace();
 		return ResponseEntity.status(status).body(createStandardError(
 				status,
-				"Resource not found",
+				"Internal Server Error",
 				"An unexpected internal system error has occurred. Please try again and if the problem persists, contact your system administrator.",
 				request.getRequestURI()));
 	}
