@@ -2,6 +2,7 @@ package com.detrasoft.framework.api.controllers;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -10,10 +11,17 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.data.domain.Page;
@@ -28,6 +36,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.detrasoft.framework.api.dto.SearchFieldDTO;
 import com.detrasoft.framework.api.dto.SearchReponseDTO;
+import com.detrasoft.framework.api.search.SearchSchemaResolver;
+import com.detrasoft.framework.api.search.SearchScope;
+import com.detrasoft.framework.api.search.SearchScopeProvider;
+import com.detrasoft.framework.api.search.SearchUnionBuilder;
 import com.detrasoft.framework.core.context.GenericContext;
 import com.detrasoft.framework.core.resource.Translator;
 import com.detrasoft.framework.crud.entities.FieldType;
@@ -42,6 +54,18 @@ import org.springframework.core.io.Resource;
 @RequestMapping("/search")
 public class GenericSearchController {
 
+	private static final Logger log = LoggerFactory.getLogger(GenericSearchController.class);
+
+	/** Schemas de tenant sao numericos (detrasoftId); qualquer outro valor e descartado. */
+	private static final Pattern SCHEMA_PATTERN = Pattern.compile("^\\d{1,19}$");
+
+	/** ":nome" sem pegar casts "::tipo"; o nome termina na fronteira de palavra. */
+	private static final Pattern PLACEHOLDER_PATTERN = Pattern.compile("(?<![:\\w]):([A-Za-z_][A-Za-z0-9_]*)\\b");
+
+	/** Preenchidos a partir do token em applyContextPlaceholders; nunca pelo cliente. */
+	private static final Set<String> CONTEXT_PLACEHOLDERS = Set.of(
+			"user_id", "software", "detrasoft_id", "timezone_offset", "current_datetime", "current_date");
+
 	private List<SearchConfiguration> searchConfigurations = new ArrayList<>();
 
 	public GenericSearchController() {
@@ -50,6 +74,14 @@ public class GenericSearchController {
 
 	@Autowired
 	SearchRepository searchRepository;
+
+	/** Opcional: schemas extras mesclados via UNION ALL (ex: workspaces compartilhados). */
+	@Autowired
+	ObjectProvider<SearchScopeProvider> scopeProviders;
+
+	/** Opcional: schema corrente para :detrasoft_id (padrao: claim do token). */
+	@Autowired
+	ObjectProvider<SearchSchemaResolver> schemaResolver;
 
 	private SearchConfiguration getSearchConfigurationById(String id) {
 		Optional<SearchConfiguration> config = searchConfigurations.stream()
@@ -127,66 +159,56 @@ public class GenericSearchController {
 		});
 
 		if (customSearchFields.size() > 0 && where != null) {
-			for (Map.Entry<String, String> entry : customSearchFields.entrySet()) {
-				String key = entry.getKey();
-				String rawValue = entry.getValue();
-				if (rawValue == null) {
-					continue;
-				}
-				String placeholder = ":" + key;
-
-				// inteiro
-				if (rawValue.matches("^-?\\d+$")) {
-					where = where.replace(placeholder, rawValue);
-				}
-				// decimal
-				else if (rawValue.matches("^-?\\d+\\.\\d+$")) {
-					where = where.replace(placeholder, rawValue);
-				}
-				// GUID simples
-				else if (rawValue.matches("^[0-9a-fA-F\\-]{36}$")) {
-					where = where.replace(placeholder, rawValue);
-				}
-				// data ou datetime ISO-8601 (ex: 2025-05-01 ou 2025-05-01T15:30:00Z)
-				else if (rawValue.matches("^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}:\\d{2})?$")) {
-					String formatted;
-					if (rawValue.contains("T")) {
-						LocalDateTime ldt = LocalDateTime.parse(rawValue, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-						ZonedDateTime zdt = ldt.atZone(ZoneOffset.UTC);
-						formatted = zdt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
-					} else {
-						LocalDate d = LocalDate.parse(rawValue, DateTimeFormatter.ISO_LOCAL_DATE);
-						formatted = d.format(DateTimeFormatter.ISO_LOCAL_DATE);
-					}
-					where = where.replace(placeholder, formatted);
-				}
-				// tudo o mais cai aqui como string
-				else {
-					where = where.replace(placeholder, rawValue);
-				}
-			}
+			where = applyCustomPlaceholders(where, customSearchFields);
 		}
 
-		String query = getSQLNativeCommand(searchFields, columns, from, where, groupBy, orderBy, anyValue);
-		query = applyContextPlaceholders(query);
+		String select = buildSelectSQL(columns);
+		String body = buildBodySQL(searchFields, columns, from, where, groupBy, anyValue);
+		String homeSchema = resolveCurrentSchema();
+		String homeQuery = applyContextPlaceholders(select + body + orderBySQL(orderBy), homeSchema);
+
+		List<SearchScope> extraScopes = extraScopes(id, homeSchema);
+		boolean sumMode = "sum".equalsIgnoreCase(config.getMergeMode());
+		boolean merged = !extraScopes.isEmpty();
+		String query = merged
+				? buildMergedQuery(select, body, orderBy, columns, homeSchema, extraScopes, sumMode)
+				: homeQuery;
 
 		List<Object[]> resultSQL;
-		if (!unpaged) {
-			resultSQL = searchRepository.findNativeSQL(query, pageable);
-		} else {
-			resultSQL = searchRepository.findNativeSQL(query);
+		int totalRecords;
+		try {
+			resultSQL = runQuery(query, unpaged, pageable);
+			totalRecords = searchRepository.countNativeSQL(query);
+		} catch (RuntimeException e) {
+			if (!merged) {
+				throw e;
+			}
+			// Um schema externo com problema nao pode derrubar a listagem do proprio workspace.
+			log.warn("Search '{}' mesclada falhou; usando apenas o schema {}: {}", id, homeSchema, e.getMessage());
+			merged = false;
+			query = homeQuery;
+			resultSQL = runQuery(query, unpaged, pageable);
+			totalRecords = searchRepository.countNativeSQL(query);
 		}
 
+		boolean unionRows = merged && !sumMode;
 		for (Object[] row : resultSQL) {
 			Map<String, Object> rowMap = new HashMap<>();
 			for (int i = 0; i < columns.size(); i++) {
 				SearchField column = columns.get(i);
-				rowMap.put(column.getField(), row[i]);
+				// SUM(bigint) volta como BigDecimal; mantem o mesmo tipo da query sem mescla
+				rowMap.put(column.getField(), merged && sumMode ? normalizeNumber(row[i]) : row[i]);
+			}
+			if (unionRows) {
+				int scope = ((Number) row[row.length - 1]).intValue();
+				if (scope > 0 && scope <= extraScopes.size()) {
+					extraScopes.get(scope - 1).attributes().forEach(rowMap::putIfAbsent);
+				}
 			}
 			resultList.add(rowMap);
 		}
 
-		response.setTotalRecords(searchRepository.countNativeSQL(query));
+		response.setTotalRecords(totalRecords);
 		Page<?> resultListPage = new PageImpl<>(resultList, pageable, response.getTotalRecords());
 
 		response.setTitle(title);
@@ -196,7 +218,153 @@ public class GenericSearchController {
 		return ResponseEntity.ok(response);
 	}
 
-	private String applyContextPlaceholders(String query) {
+	/**
+	 * Substitui placeholders ":chave" do where pelos query params do cliente.
+	 *
+	 * - Chaves de contexto (:user_id, :detrasoft_id...) sao reservadas: vem do
+	 *   token em applyContextPlaceholders e o cliente nao pode sobrescreve-las
+	 *   (antes "?detrasoft_id=5" trocava o schema das subqueries).
+	 * - Match com fronteira de palavra: ":user" nao corrompe ":user_id".
+	 * - Dentro de literal ('...') o valor e escapado; fora dele vira literal
+	 *   entre aspas. O Postgres converte o literal para o tipo da coluna, entao
+	 *   comparacoes com numero/uuid/data continuam funcionando.
+	 */
+	private String applyCustomPlaceholders(String where, Map<String, String> customSearchFields) {
+		Matcher matcher = PLACEHOLDER_PATTERN.matcher(where);
+		StringBuilder result = new StringBuilder();
+		int last = 0;
+		while (matcher.find()) {
+			String key = matcher.group(1);
+			String rawValue = customSearchFields.get(key);
+			if (rawValue == null || CONTEXT_PLACEHOLDERS.contains(key)) {
+				continue;
+			}
+			result.append(where, last, matcher.start());
+			String value = normalizeDateValue(rawValue);
+			if (isInsideStringLiteral(where, matcher.start())) {
+				result.append(escapeLiteral(value));
+			} else {
+				result.append(quoteLiteral(value));
+			}
+			last = matcher.end();
+		}
+		result.append(where.substring(last));
+		return result.toString();
+	}
+
+	// data ou datetime ISO-8601 (ex: 2025-05-01 ou 2025-05-01T15:30:00) -> formato canonico
+	private String normalizeDateValue(String rawValue) {
+		if (rawValue.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}$")) {
+			LocalDateTime ldt = LocalDateTime.parse(rawValue, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+			return ldt.atZone(ZoneOffset.UTC).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+		}
+		if (rawValue.matches("^\\d{4}-\\d{2}-\\d{2}$")) {
+			return LocalDate.parse(rawValue, DateTimeFormatter.ISO_LOCAL_DATE).format(DateTimeFormatter.ISO_LOCAL_DATE);
+		}
+		return rawValue;
+	}
+
+	/** Paridade de aspas simples antes da posicao ('' escapado conta 2, mantendo a paridade). */
+	private static boolean isInsideStringLiteral(String sql, int position) {
+		int quotes = 0;
+		for (int i = 0; i < position; i++) {
+			if (sql.charAt(i) == '\'') {
+				quotes++;
+			}
+		}
+		return quotes % 2 == 1;
+	}
+
+	/**
+	 * Escapa um valor para uso DENTRO de um literal SQL ('...'). Pressupoe
+	 * standard_conforming_strings=on (padrao do PostgreSQL desde 9.1), em que a
+	 * barra invertida nao e caractere de escape em literais comuns.
+	 */
+	static String escapeLiteral(String value) {
+		if (value == null) {
+			return "";
+		}
+		return value.replace("\u0000", "").replace("'", "''");
+	}
+
+	static String quoteLiteral(String value) {
+		return "'" + escapeLiteral(value) + "'";
+	}
+
+	/**
+	 * Schema corrente para :detrasoft_id. Com SearchSchemaResolver (ex: tenant
+	 * validado do header) usa-o; sem ele, ou com valor invalido, usa a claim.
+	 */
+	private String resolveCurrentSchema() {
+		SearchSchemaResolver resolver = schemaResolver != null ? schemaResolver.getIfAvailable() : null;
+		if (resolver != null) {
+			String schema = resolver.currentSchema();
+			if (schema != null && SCHEMA_PATTERN.matcher(schema).matches()) {
+				return schema;
+			}
+		}
+		return GenericContext.getContexts("detrasoftId");
+	}
+
+	/** Schemas extras validos, sem repetir e sem o schema corrente. Falha do provider = sem extras. */
+	private List<SearchScope> extraScopes(String searchId, String homeSchema) {
+		if (scopeProviders == null || homeSchema == null) {
+			return List.of();
+		}
+		Map<String, SearchScope> scopes = new LinkedHashMap<>();
+		try {
+			scopeProviders.orderedStream().forEach(provider -> {
+				List<SearchScope> provided = provider.extraScopes(searchId);
+				if (provided == null) {
+					return;
+				}
+				for (SearchScope scope : provided) {
+					if (scope != null && scope.schema() != null
+							&& SCHEMA_PATTERN.matcher(scope.schema()).matches()
+							&& !scope.schema().equals(homeSchema)) {
+						scopes.putIfAbsent(scope.schema(), scope);
+					}
+				}
+			});
+		} catch (RuntimeException e) {
+			log.warn("SearchScopeProvider falhou para a search '{}': {}", searchId, e.getMessage());
+			return List.of();
+		}
+		return new ArrayList<>(scopes.values());
+	}
+
+	/** Ramo 0 = schema corrente; ramo i = extraScopes[i-1]. */
+	private String buildMergedQuery(String select, String body, String orderBy, List<SearchField> columns,
+			String homeSchema, List<SearchScope> extraScopes, boolean sumMode) {
+		List<SearchUnionBuilder.OrderItem> order = sumMode ? List.of() : SearchUnionBuilder.parseOrderBy(orderBy);
+		List<String> branches = new ArrayList<>();
+		branches.add(applyContextPlaceholders(SearchUnionBuilder.branch(select, body, order, 0), homeSchema));
+		for (int i = 0; i < extraScopes.size(); i++) {
+			branches.add(applyContextPlaceholders(
+					SearchUnionBuilder.branch(select, body, order, i + 1), extraScopes.get(i).schema()));
+		}
+		if (sumMode) {
+			return SearchUnionBuilder.sum(branches, columns.stream().map(SearchField::getType).toList());
+		}
+		return SearchUnionBuilder.union(branches, order);
+	}
+
+	private List<Object[]> runQuery(String query, boolean unpaged, Pageable pageable) {
+		return unpaged ? searchRepository.findNativeSQL(query) : searchRepository.findNativeSQL(query, pageable);
+	}
+
+	private static Object normalizeNumber(Object value) {
+		if (value instanceof BigDecimal decimal && decimal.stripTrailingZeros().scale() <= 0) {
+			try {
+				return decimal.longValueExact();
+			} catch (ArithmeticException e) {
+				return value;
+			}
+		}
+		return value;
+	}
+
+	private String applyContextPlaceholders(String query, String schema) {
 		if (query == null) {
 			return null;
 		}
@@ -207,8 +375,7 @@ public class GenericSearchController {
 		String software = GenericContext.getContexts("software");
 		query = query.replace(":software", software != null ? software : "");
 
-		String detrasoftId = GenericContext.getContexts("detrasoftId");
-		query = query.replace(":detrasoft_id", detrasoftId != null ? detrasoftId : "");
+		query = query.replace(":detrasoft_id", schema != null ? schema : "");
 
 		String timezoneOffset = GenericContext.getContexts("timezoneOffset");
 		ZoneOffset zoneOffset;
@@ -232,8 +399,7 @@ public class GenericSearchController {
 		return query;
 	}
 
-	private String getSQLNativeCommand(List<SearchField> searchFields, List<SearchField> columns, String from,
-			String where, String groupBy, String orderBy, String anyValue) {
+	private static String buildSelectSQL(List<SearchField> columns) {
 		String selectSQL = "SELECT ";
 		for (int i = 0; i < columns.size(); i++) {
 			selectSQL = selectSQL + columns.get(i).getColumnName() + " AS C" + i + " ";
@@ -241,10 +407,20 @@ public class GenericSearchController {
 				selectSQL = selectSQL + ", ";
 			}
 		}
+		return selectSQL;
+	}
 
+	private static String orderBySQL(String orderBy) {
+		return orderBy != null && !orderBy.isBlank() ? " ORDER BY " + orderBy : "";
+	}
+
+	/** FROM + WHERE + GROUP BY (sem ORDER BY, que depende de a query ser mesclada ou nao). */
+	private String buildBodySQL(List<SearchField> searchFields, List<SearchField> columns, String from,
+			String where, String groupBy, String anyValue) {
 		String fromSQL = " FROM " + from;
 
-		String whereSQL = (where != null ? where + " AND " : "");
+		// Parenteses: um "a OR b" do JSON nao pode engolir os filtros do cliente
+		String whereSQL = (where != null && !where.isBlank() ? "(" + where + ") AND " : "");
 
 		for (int i = 0; i < searchFields.size(); i++) {
 			if ((searchFields.get(i).getValue() != null) && !(searchFields.get(i).getValue().equals(""))) {
@@ -258,14 +434,16 @@ public class GenericSearchController {
 						}
 					}
 				}
+				// Todo valor do cliente entra como literal escapado (escapeLiteral/quoteLiteral).
 				// STRING
 				if (searchFields.get(i).getType().equals(FieldType.string)) {
-					String value = searchFields.get(i).getValue().toString().replace(" ", "%");
+					String value = escapeLiteral(searchFields.get(i).getValue().toString()).replace(" ", "%");
 					whereSQL = whereSQL + columnName + " ILIKE ('%" + value + "%')";
 				} // DATE
 				else if (searchFields.get(i).getType().equals(FieldType.date)) {
-					String value = searchFields.get(i).getValue().toString().substring(0, 10);
-					whereSQL = whereSQL + "date_trunc('day'," + columnName + ") = '" + value + "'";
+					String value = searchFields.get(i).getValue().toString();
+					value = value.length() > 10 ? value.substring(0, 10) : value;
+					whereSQL = whereSQL + "date_trunc('day'," + columnName + ") = " + quoteLiteral(value);
 				} // RANGE of DATE
 				else if (searchFields.get(i).getType().equals(FieldType.rangedate)) {
 					List<String> valueList = Arrays.asList(searchFields.get(i).getValue().toString().split(";"));
@@ -274,8 +452,8 @@ public class GenericSearchController {
 					if (valueList.size() == 2) {
 						whereSQL = whereSQL +
 								"date_trunc('day'," + columnName + ")"
-								+ " BETWEEN date_trunc('day', TIMESTAMP WITH TIME ZONE '" + valueList.get(0)
-								+ "') AND date_trunc('day', TIMESTAMP WITH TIME ZONE '" + valueList.get(1) + "')";
+								+ " BETWEEN date_trunc('day', TIMESTAMP WITH TIME ZONE " + quoteLiteral(valueList.get(0))
+								+ ") AND date_trunc('day', TIMESTAMP WITH TIME ZONE " + quoteLiteral(valueList.get(1)) + ")";
 
 					} else if (valueList.size() == 1) {
 						ZonedDateTime date = ZonedDateTime.parse(valueList.get(0), DateTimeFormatter.ISO_DATE_TIME);
@@ -290,8 +468,8 @@ public class GenericSearchController {
 							&& searchFields.get(i).getValue().toString().split("-to-").length == 2) {
 						List<String> valueList = Arrays.asList(searchFields.get(i).getValue().toString().split("-to-"));
 						valueList.removeIf(d -> d == null);
-						whereSQL = whereSQL + " ( " + columnName + " ) BETWEEN '" + valueList.get(0)
-								+ "'::timestamptz AND '" + valueList.get(1) + "'::timestamptz ";
+						whereSQL = whereSQL + " ( " + columnName + " ) BETWEEN " + quoteLiteral(valueList.get(0))
+								+ "::timestamptz AND " + quoteLiteral(valueList.get(1)) + "::timestamptz ";
 
 					} else {
 						List<String> valueList = Arrays.asList(searchFields.get(i).getValue().toString().split(","));
@@ -306,12 +484,13 @@ public class GenericSearchController {
 				// CURRENCY
 				else if (searchFields.get(i).getType().equals(FieldType.currency)) {
 					String value = searchFields.get(i).getValue().toString().replace(" ", "%");
-					whereSQL = whereSQL + columnName + " = " + value.replace(',', '.');
+					whereSQL = whereSQL + columnName + " = " + quoteLiteral(value.replace(',', '.'));
 
 				} else if (searchFields.get(i).getType().equals(FieldType.guid)) {
-					whereSQL = whereSQL + columnName + " = '" + searchFields.get(i).getValue().toString() + "'";
+					whereSQL = whereSQL + columnName + " = " + quoteLiteral(searchFields.get(i).getValue().toString());
 				} else {
-					whereSQL = whereSQL + columnName + " = " + searchFields.get(i).getValue().toString();
+					// number/bool/etc.: literal entre aspas e convertido pelo Postgres para o tipo da coluna
+					whereSQL = whereSQL + columnName + " = " + quoteLiteral(searchFields.get(i).getValue().toString());
 				}
 
 				whereSQL = whereSQL + " AND ";
@@ -329,18 +508,16 @@ public class GenericSearchController {
 		}
 		whereSQL = (!whereSQL.equals("") ? " WHERE " + whereSQL : "");
 
-		String groupBySQL = groupBy != null ? " GROUP BY " + groupBy : "";
+		String groupBySQL = groupBy != null && !groupBy.isBlank() ? " GROUP BY " + groupBy : "";
 
-		String orderBySQL = orderBy != null ? " ORDER BY " + orderBy : "";
-
-		return selectSQL + fromSQL + whereSQL + groupBySQL + orderBySQL;
+		return fromSQL + whereSQL + groupBySQL;
 	}
 
 	private String buildAnyClause(List<SearchField> columns, String anyValue) {
 		if (anyValue == null || anyValue.isEmpty()) {
 			return "";
 		}
-		String value = anyValue.replace(" ", "%");
+		String value = escapeLiteral(anyValue).replace(" ", "%");
 		List<String> conditions = new ArrayList<>();
 		for (SearchField column : columns) {
 			if (FieldType.string.equals(column.getType()) && !column.isHidden()
